@@ -64,14 +64,17 @@ docs와 충돌하면 docs 우선. 새 챕터·기능은 **그 챕터의 명세 1
 - **스테이지 진행(주문 시스템)**: `LevelData`를 `StageSequence` 순서대로 진행하는 다중 스테이지 구조 (2026-08-02 스코프 확정 — 기존 "단일 라운드로 완결" 방침 대체). 스테이지별 주문(`OrderRequirement`) 재료를 모두 모으면 클리어. 상세: `Docs/feature-spec/11-order-stage.md`.
 - **특수 타일(라인/컬러/반경 폭탄)**: 정식 스펙으로 편입 (기존 "여유 시간 스트레치 목표" 방침 대체). 상세: `Docs/feature-spec/12-special-tiles.md`.
 - 스테이지 종료: 주문 완료 시 클리어(우선), 주문 미완료 상태로 **이동 횟수** 소진(스테이지별 설정값, 기본 20회) 시 게임 오버. 타이머 방식 아님.
-- 결과 화면: 최종 점수 + 최고 콤보 수 표시. **※ 콤보 카운트/배율 로직과 결과 화면 자체는 아직 미구현 (2026-08-02 기준) — 대회 심사 필수 항목이므로 4단계 작업으로 반드시 채울 것.**
+- 결과 화면: 최종 점수 + 최고 콤보 수 표시. **구현 완료**(`GridController.MaxCombo`,
+  `PuzzleHud.ShowGameOver` — 게임 오버 시 최종 점수/최고 콤보/"다시 시작" 버튼 노출). 단, "Combo
+  x{n}!" 팝업 텍스트 연출(`06-ui.md` §HUD) 자체는 스트레치 목표로 남아있고 아직 없음 — 콤보 최댓값
+  추적/결과 화면 노출과는 별개.
 - 캐릭터: 마녀(루나), 스텔라(Stella, 검은고양이) 2종만.
 - 배경: 기본은 단색/그라디언트, 이후 확장 가능(§`06-ui.md`).
 
 ## 코딩 컨벤션 (요약 — SoT는 `Docs/convention.md`)
 
 - `IngredientData : ScriptableObject` — 타일 종류별 스프라이트 참조 (등급/승급 개념 없음). 색상 태그는 렌더링/로직에서 쓰이지 않는 죽은 필드라 2026-08-02 제거, 매치당 기본 점수는 `GridController`의 상수(`PointsPerTile`)로만 존재하고 아직 데이터 필드로 분리돼 있지 않음
-- `TileController : MonoBehaviour` — 스왑 입력 처리 후 그리드 로직에 매치 판정 요청, 매치 성립 시 `MatchEvent` 발행 (직접 GameManager 호출 금지)
+- `TileController : MonoBehaviour` — 스왑 입력 처리 후 그리드 로직에 매치 판정 요청, 순수 C# 이벤트(`SwapRequested`/`SpecialActivationRequested`/`TileSelected`)로 `Match3Controller`에 알림 (직접 GameManager 호출 금지, `MatchEvent`라는 채널은 없음 — 결과는 `GridController`가 `IntEventChannel`/`OrderProgressEventChannel`로 노출)
 - `GridController` — 2차원 배열로 보드 상태 관리, 매치 탐색(가로/세로 3개 이상), 캐스케이드 로직, 특수 타일, 주문(Order) 진행/스테이지 종료 판정 담당
 - 오브젝트 풀은 목적별 클래스로 분리 (`TileViewPool`, `BoardSnapshotPool`)
 

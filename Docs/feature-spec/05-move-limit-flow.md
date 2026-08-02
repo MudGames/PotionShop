@@ -14,7 +14,8 @@
 ## 상태 흐름
 ```
 [스테이지 로드] → [Playing] → (주문 완료) → [Clear 배너] → (버튼) → 다음 스테이지 [Playing]
-                            → (이동 횟수 소진, 주문 미완료) → [Game Over 배너] → (§06-ui.md, 결과 화면 미구현)
+                            → (이동 횟수 소진, 주문 미완료) → [Game Over 배너: 최종 점수/최고 콤보/
+                              다시 시작 버튼 — §06-ui.md 결과 화면, 구현 완료]
 ```
 - `GridController`가 `IsCleared`/`IsGameOver` 프로퍼티로 상태 노출, `Match3Controller`가 캐스케이드 애니메이션 종료 시점에 `OrderClearedChannel`/`GameOverChannel`을 Raise
 - `GameManager`가 현재 스테이지 인덱스를 보유하며, 씬 전환 없이 같은 퍼즐 씬 안에서 `LevelData`만 교체

@@ -9,7 +9,7 @@
 
 ## 주문 (Order)
 - `OrderRequirement { typeIndex, requiredCount }` — "이 재료(typeIndex) 타일을 requiredCount개 모으기"
-- 매치/캐스케이드/특수 타일 폭발로 제거되는 타일마다 해당 재료의 수집 개수가 1씩 증가 (`GridController` 내부 카운터)
+- 매치/캐스케이드/특수 타일 폭발로 제거되는 타일마다 해당 재료의 수집 개수가 1씩 증가 (`GridController` 내부 카운터), `requiredCount`를 넘어서지 않도록 상한 처리됨(`Mathf.Min`)
 - 모든 `OrderRequirement`의 수집 개수가 목표치에 도달하면 스테이지 클리어(`GridController.IsCleared`)
 - 진행 상황은 `OrderProgressEventChannel`을 통해 매 캐스케이드 스텝마다 실시간으로 노출됨 (§`06-ui.md`의 미션 패널)
 

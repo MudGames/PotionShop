@@ -3,9 +3,14 @@
 > 물리 엔진 미사용, 순수 데이터 그리드 (convention §3).
 
 ## 그리드
-- 기본 크기 **6x6** (설정값, 하드코딩 금지 — `GameConfig` SO의 `boardWidth`/`boardHeight`)
-- 좌표: `(x, y)`, 좌하단 `(0,0)` 기준 배열 인덱스
-- 초기화: 매치가 이미 성립된 상태로 생성되지 않도록 초기 배치 시 검증(최소 1회 재섞기 로직)
+- 기본 크기 **6x6** (설정값, 하드코딩 금지 — `LevelData.rows`/`columns`, 최소 3)
+- 좌표: `GridCell(row, col)`, 좌상단 `(0,0)` 기준 배열 인덱스
+- 초기화(`BoardInitializer`): 매치가 이미 성립된 상태로 생성되지 않도록 초기 배치 시 검증(좌→우/
+  상→하로 채우며 직전 2칸과 같은 타입을 피하는 제약 완화 체인)
+- **교환 가능한 수가 하나도 없는 상태("데드락")로 시작하는 것도 방지한다(2026-08-03 추가)**:
+  `GridController` 생성자가 초기 배치 직후 `DeadlockDetector.HasValidMove`를 확인하고, 없으면
+  즉시 `DeadlockDetector.Reshuffle`로 재배치한다 — 캐스케이드 종료 후(교환 성사 시점)에도 동일하게
+  검사한다(`03-match-cascade.md` 참고)
 - 그리드 크기/이동 횟수/재료 배열은 스테이지(`LevelData`)마다 다르게 설정 가능 (§`11-order-stage.md`)
 - 장애물 셀(`LevelData.blockedCells`): 영구적으로 막혀 매치/캐스케이드에서 제외되는 선택적 셀
 
@@ -22,8 +27,11 @@
 | 마법 수정 | Cainos Crystal |
 | 요정 깃털 | Cainos Feather |
 
-- `IngredientData : ScriptableObject` 필드: `sprite`, `baseScore` (convention §9). 색상 태그(`colorTag`)는 렌더링/로직 어디에서도 쓰이지 않아 2026-08-02 제거 — 타일 정체성은 스프라이트만으로 표현.
-- 타일 종류 수는 `GameConfig.tileTypeCount`로 관리, 배열은 등록된 `IngredientData[]`에서 개수만큼 사용
+- `IngredientData : ScriptableObject` 필드는 `sprite` 하나뿐이다 — 색상 태그(`colorTag`)/등급/
+  점수(`baseScore`) 필드는 두지 않는다. 타일 정체성은 스프라이트만으로 표현하고, 매치당 점수는
+  `GridController`의 상수(`PointsPerTile`)로만 존재한다(§`04-score-combo.md`).
+- 타일 종류 수는 별도 설정값이 아니라 `LevelData.ingredients` 배열의 길이 자체로 결정된다
+  (`GridController`가 `ingredients.Length`를 타입 개수로 읽어 들임)
 
 ## 타일 뷰 (TileController)
 - `IngredientData` 참조해 스프라이트 표시

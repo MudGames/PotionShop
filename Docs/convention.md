@@ -13,7 +13,6 @@
   - 그리드 크기(기본 6x6)
   - 타일 종류 수(기본 6종)
   - 이동 횟수 제한(기본 20회)
-  - 매치당 점수, 콤보 배율
 
 ## §2. 필드/접근 규칙
 
@@ -28,8 +27,8 @@
   - 매치 탐색: 가로/세로 각각 연속 3개 이상 동일 `IngredientData` 탐색
   - 캐스케이드: 매치된 타일 제거 후 위 칸에서 낙하 채움, 빈 칸은 신규 타일로 보충
 - `TileController`
-  - 스왑 입력을 받아 `GridController`에 매치 판정을 **요청**만 함
-  - 매치 성립 시 `MatchEvent` 채널에 발행 — `GameManager`/`ScoreManager`를 직접 호출하지 않음
+  - 스왑 입력을 받아 `GridController`에 매치 판정을 **요청**만 함 (`SwapRequested`/`SpecialActivationRequested`/`TileSelected` 순수 C# 이벤트로 `Match3Controller`에 알림 — `MatchEvent` 같은 채널은 없음)
+  - `GameManager`/점수 매니저를 직접 호출하지 않음 — 결과는 `GridController`가 `IntEventChannel`/`OrderProgressEventChannel` 등으로 노출
   - 매치 실패(스왑 후 매치 無) 시 원위치로 되돌리고 이동 횟수 미소모
 
 ## §4. 이벤트 채널 (ScriptableObject Event Channel 패턴)
@@ -41,7 +40,7 @@
 - `OrderProgressEventChannel` — 주문(Order) 진행 상황 (`IReadOnlyList<OrderProgressEntry>`)
 - `VoidEventChannel` — 스테이지 클리어, 게임 오버, 다음 스테이지 요청, 스테이지 시작
 
-※ 콤보 카운트 채널은 아직 없음 (콤보 로직 자체가 미구현, `04-score-combo.md` 참고 — 구현 시 이 패턴을 따를 것)
+※ 콤보(연쇄 매치 카운트)는 별도 이벤트 채널 없이 `GridController.MaxCombo` 프로퍼티를 직접 읽는 방식으로 구현됨 (`04-score-combo.md` 참고) — 실시간 갱신이 필요한 값(점수/이동 횟수/주문 진행도)만 채널을 사용
 
 ## §5. 오브젝트 풀링
 
@@ -68,5 +67,5 @@
 
 ## §9. 데이터-코드 계약
 
-- `IngredientData : ScriptableObject` 필드: 스프라이트, 매치당 기본 점수. **등급/승급 필드 없음** (매치3는 동일 타일 매치이므로 불필요 — Luna & Stella 초안 원칙 유지).
-- 콤보/점수 배율은 별도 `ScoreConfig` 또는 `GameConfig` SO로 분리 (§1 하드코딩 금지 대상).
+- `IngredientData : ScriptableObject` 필드: 스프라이트(`sprite`)만 존재. **등급/승급 필드 없음** (매치3는 동일 타일 매치이므로 불필요 — Luna & Stella 초안 원칙 유지). 색상 태그(`colorTag`)는 렌더링/로직 어디서도 쓰이지 않는 죽은 필드였기에 제거됨.
+- 매치당 기본 점수는 별도 SO/설정 클래스로 분리돼 있지 않고 `GridController`의 상수(`PointsPerTile`)로만 존재함 — `GameConfig`/`ScoreConfig` 같은 SO는 없음.

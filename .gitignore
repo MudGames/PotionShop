@@ -104,3 +104,20 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# 재배포 제한이 있는 유료/EULA 외부 에셋 원본 — 출처·라이선스는 Docs/asset-credits.md 참고.
+# 로컬 디스크에는 남아있어 빌드에는 영향 없음, GitHub(Public 저장소)에만 올라가지 않음.
+/[Aa]ssets/Cainos/
+/[Aa]ssets/Cainos.meta
+/[Aa]ssets/Art/Sprites/Characters/
+/[Aa]ssets/Art/Sprites/Characters.meta
+/[Aa]ssets/Art/Sprites/Decorations/
+/[Aa]ssets/Art/Sprites/Decorations.meta
+/[Aa]ssets/Art/Sprites/Objects/
+/[Aa]ssets/Art/Sprites/Objects.meta
+/[Aa]ssets/Art/Sprites/Tiles/
+/[Aa]ssets/Art/Sprites/Tiles.meta
+/[Aa]ssets/Art/Sprites/UI/elements/
+/[Aa]ssets/Art/Sprites/UI/elements.meta
+/[Aa]ssets/Art/Sprites/UI/UI.png
+/[Aa]ssets/Art/Sprites/UI/UI.png.meta

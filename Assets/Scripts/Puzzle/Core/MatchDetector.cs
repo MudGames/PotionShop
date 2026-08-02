@@ -85,11 +85,15 @@ namespace Puzzle.Core
             runs.Add(new MatchRun(cells, isHorizontal));
         }
 
+        // 특수 타일(폭탄)은 매치 대상이 아니다 - 색깔이 같아도 런에 끼워주지 않는다. 그래야 캐스케이드
+        // 중 우연히 같은 색 사이에 끼어도 조용히 사라지지 않고, 플레이어가 직접 스왑/탭으로 활성화할
+        // 때만 사라진다(12-special-tiles.md 참고).
         private static bool IsSameFilledType(Board board, int rowA, int colA, int rowB, int colB)
         {
             TileState a = board.Get(rowA, colA);
             TileState b = board.Get(rowB, colB);
-            return a.IsFilled && b.IsFilled && a.TypeIndex == b.TypeIndex;
+            return a.IsFilled && b.IsFilled && a.TypeIndex == b.TypeIndex
+                && a.Special == SpecialKind.None && b.Special == SpecialKind.None;
         }
     }
 }

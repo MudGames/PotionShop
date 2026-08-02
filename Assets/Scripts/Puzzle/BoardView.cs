@@ -94,6 +94,29 @@ public sealed class BoardView
         return GetTilePosition(cell.Row, cell.Col);
     }
 
+    // 컨테이너의 실제 크기(창 리사이즈, 화면 회전 등)가 바뀐 뒤 호출된다 - 셀 크기는 Build() 때
+    // 딱 한 번만 계산해두므로, 그대로는 리사이즈에 반응하지 않는다. 보드가 아직 만들어지기 전이면
+    // 조용히 무시한다(Match3Controller.OnRectTransformDimensionsChange 참고).
+    public void RefreshLayout()
+    {
+        if (_views == null)
+        {
+            return;
+        }
+
+        CalculateTileLayout();
+
+        for (int row = 0; row < _rows; row++)
+        {
+            for (int col = 0; col < _columns; col++)
+            {
+                TileView view = _views[row, col];
+                view.SetSize(_cellSize);
+                view.SetPosition(GetTilePosition(row, col));
+            }
+        }
+    }
+
     // 두 타일을 서로의 위치로 슬라이드시킨다. commit이 true이면(스왑이 매치를 만들었거나 스페셜을
     // 활성화한 경우), 내부 TileView *슬롯 참조*도 함께 교체된다 - 즉 슬롯 a는 그 자리로 슬라이드해 온
     // view가 무엇이든 영구적으로 그 view가 되며, 각 view 자신의 Cell도 그에 맞게 갱신된다. 그렇게 하지

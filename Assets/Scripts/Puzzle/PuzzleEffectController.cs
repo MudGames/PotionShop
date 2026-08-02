@@ -45,6 +45,11 @@ public sealed class PuzzleEffectController
 
     private IEnumerator PlayRoutine(GridCell a, GridCell b, SwapResult result, Action onComplete)
     {
+        if (!result.Accepted)
+        {
+            AudioManager.Instance?.PlaySwapFail();
+        }
+
         // 스왑이 결국 유효한 것으로 판명되든 아니든, 두 타일은 항상 먼저 서로를 향해 슬라이드한다 -
         // 거부되면 AnimateSwapAttempt가 확정하는 대신 다시 원래대로 슬라이드해 되돌린다.
         yield return _boardView.AnimateSwapAttempt(a, b, _swapDuration, commit: result.Accepted);
@@ -62,6 +67,17 @@ public sealed class PuzzleEffectController
 
         foreach (CascadeStepInfo step in result.Steps)
         {
+            // step 0 = 스왑 자체가 만든 매치("교환 성공"), step 1+ = 캐스케이드로 이어진 연쇄 매치
+            // ("캐스케이드 연쇄") - 07-sound.md의 트리거 구분과 맞춘 것.
+            if (step.StepIndex == 0)
+            {
+                AudioManager.Instance?.PlayMatch();
+            }
+            else
+            {
+                AudioManager.Instance?.PlayCascade();
+            }
+
             yield return _boardView.AnimateClear(step.ClearedCells, _clearDuration);
             _boardView.RefreshSpawnedSpecials(step.SpawnedSpecials, step.BoardSnapshot);
 

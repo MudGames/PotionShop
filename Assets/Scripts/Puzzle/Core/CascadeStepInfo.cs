@@ -57,10 +57,16 @@ namespace Puzzle.Core
         public bool Accepted { get; }
         public IReadOnlyList<CascadeStepInfo> Steps { get; }
 
-        public SwapResult(bool accepted, IReadOnlyList<CascadeStepInfo> steps)
+        // 캐스케이드가 다 끝난 뒤에도 교환 가능한 매치가 하나도 남지 않아(데드락) GridController가
+        // 보드를 섞었다는 뜻이다 - Presentation은 이 경우 Steps 애니메이션이 끝난 뒤 보드를 다시
+        // 그려야 한다(DeadlockDetector, Match3Controller.OnSwapPlaybackComplete 참고).
+        public bool WasReshuffled { get; }
+
+        public SwapResult(bool accepted, IReadOnlyList<CascadeStepInfo> steps, bool wasReshuffled = false)
         {
             Accepted = accepted;
             Steps = steps;
+            WasReshuffled = wasReshuffled;
         }
     }
 }

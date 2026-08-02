@@ -21,10 +21,18 @@ public sealed class GameManager : MonoBehaviour
     private int _currentStageIndex;
     private readonly List<string> _completedStageTitles = new List<string>();
 
+    // HUD의 스테이지 표시(PuzzleHud.UpdateStageLabel)용 - _currentStageIndex와 별개로 관리한다.
+    // _currentStageIndex는 StageSequence 배열 조회용이라 마지막 스테이지에서 더 못 올라가고 멈추는데
+    // (같은 스테이지 반복 플레이, AdvanceStage 참고), 화면에 보여줄 번호는 그와 무관하게 클리어할
+    // 때마다(반복 플레이 포함) 계속 1씩 늘어나야 한다는 요청(2026-08-03)에 따른 것.
+    private int _stageDisplayNumber = 1;
+
     public LevelData CurrentLevel =>
         stageSequence != null && stageSequence.stages.Length > 0
             ? stageSequence.stages[Mathf.Clamp(_currentStageIndex, 0, stageSequence.stages.Length - 1)]
             : null;
+
+    public int CurrentStageNumber => _stageDisplayNumber;
 
     // 노트 패널이 보여주는 대상 - 방금 클리어한 스테이지이며, CurrentLevel이 아니다(노트 패널이
     // 읽을 시점에는 이미 다음 스테이지로 넘어가 있을 수 있기 때문).
@@ -73,5 +81,20 @@ public sealed class GameManager : MonoBehaviour
         }
         // 이미 마지막 스테이지라면 그대로 머물러 다시 플레이한다. 별도의 "캠페인 완료" 연출은
         // 지금은 범위 밖이다 - 실제로 스테이지가 여러 개 소진될 만큼 늘어나면 그때 다시 다룬다.
+
+        // 화면에 보여줄 번호는 실제 스테이지 애셋 개수와 무관하게 클리어할 때마다 계속 늘어난다
+        // (마지막 스테이지를 반복 플레이해도 1,2,3,4,5...로 계속 증가).
+        _stageDisplayNumber++;
+    }
+
+    // 결과 화면의 "다시 시작" 버튼에서 호출된다(Match3Controller.OnRestartRequested 참고) - 스테이지
+    // 진행도를 1스테이지로 되돌리고 노트 목차도 비운다. 점수/최고 콤보는 GameManager가 아니라
+    // Match3Controller/GridController 쪽에서 별도로 0으로 리셋한다.
+    public void ResetProgress()
+    {
+        _currentStageIndex = 0;
+        _stageDisplayNumber = 1;
+        _completedStageTitles.Clear();
+        LastCompletedLevel = null;
     }
 }

@@ -18,6 +18,7 @@ public sealed class TileController
 
     public event Action<GridCell, GridCell> SwapRequested;
     public event Action<GridCell> SpecialActivationRequested;
+    public event Action<GridCell> TileSelected;
 
     public TileController(BoardView boardView, Func<GridCell, bool> isSpecialTile, Func<GridCell, bool> isBlockedTile)
     {
@@ -79,5 +80,6 @@ public sealed class TileController
 
         _selectedCell = cell;
         _boardView.SetHighlight(cell, true);
+        TileSelected?.Invoke(cell);
     }
 }

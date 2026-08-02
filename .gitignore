@@ -107,6 +107,8 @@ InitTestScene*.unity*
 
 # 재배포 제한이 있는 유료/EULA 외부 에셋 원본 — 출처·라이선스는 Docs/asset-credits.md 참고.
 # 로컬 디스크에는 남아있어 빌드에는 영향 없음, GitHub(Public 저장소)에만 올라가지 않음.
+/[Aa]ssets/Audio/
+/[Aa]ssets/Audio.meta
 /[Aa]ssets/Cainos/
 /[Aa]ssets/Cainos.meta
 /[Aa]ssets/Art/Sprites/Characters/
@@ -121,3 +123,14 @@ InitTestScene*.unity*
 /[Aa]ssets/Art/Sprites/UI/elements.meta
 /[Aa]ssets/Art/Sprites/UI/UI.png
 /[Aa]ssets/Art/Sprites/UI/UI.png.meta
+/[Aa]ssets/Casual Physics Puzzle BE6/
+/[Aa]ssets/Casual Physics Puzzle BE6.meta
+/[Aa]ssets/Epic Soundtracks for Every Genre - free/
+/[Aa]ssets/Epic Soundtracks for Every Genre - free.meta
+
+# WebGL 빌드 산출물 (CLAUDE.md 형상관리 규칙 — Build/Builds와 동일 취급)
+/WebGLBuild/
+
+# Unity MCP의 manage_camera 스크린샷 캡처가 Assets/ 안에 저장하는 디버그 산출물 — 실제 에셋 아님
+/[Aa]ssets/Screenshots/
+/[Aa]ssets/Screenshots.meta

@@ -35,6 +35,12 @@ namespace Puzzle.Core
         public Board Board { get; }
         public int MovesUsed { get; private set; }
         public int Score { get; private set; }
+
+        // 콤보 = 1회 교환(또는 특수 타일 활성화)으로 시작된 캐스케이드 안에서 발생한 연쇄 매치
+        // 횟수(steps.Count) - ResolveCascadeAndFinish 참고. MaxCombo는 이번 세션 중 발생한 콤보의
+        // 최댓값이며, Score와 마찬가지로 스테이지가 바뀌어도 초기화되지 않고 이어진다
+        // (Match3Controller.OnAdvanceRequested 참고).
+        public int MaxCombo { get; private set; }
         public bool IsCleared { get; private set; }
         public bool IsGameOver { get; private set; }
 
@@ -64,7 +70,8 @@ namespace Puzzle.Core
             IntEventChannel scoreChangedChannel,
             IntEventChannel movesChangedChannel,
             OrderProgressEventChannel orderProgressChannel,
-            int startingScore = 0)
+            int startingScore = 0,
+            int startingMaxCombo = 0)
         {
             _typeCount = level.ingredients.Length;
             _moveLimit = level.moveLimit;
@@ -74,9 +81,18 @@ namespace Puzzle.Core
             _orderProgressChannel = orderProgressChannel;
             Board = BoardInitializer.CreateInitialBoard(level.rows, level.columns, _typeCount, level.blockedCells, random);
 
-            // 다음 스테이지로 넘어갈 때 이전 스테이지의 점수를 이어받기 위한 시작값 - 캠페인 전체
-            // 누적 점수이지, 이 스테이지 하나만의 점수가 아니다(Match3Controller.OnAdvanceRequested 참고).
+            // BoardInitializer는 "시작부터 매치가 있으면 안 된다"만 보장할 뿐, "교환 가능한 수가
+            // 하나라도 있는지"는 보장하지 않는다 - 운이 나쁘면 첫 수조차 못 두는 채로 게임이 시작될
+            // 수 있으므로, ResolveCascadeAndFinish와 동일한 검사를 시작 시점에도 한 번 해준다.
+            if (!DeadlockDetector.HasValidMove(Board))
+            {
+                DeadlockDetector.Reshuffle(Board, random);
+            }
+
+            // 다음 스테이지로 넘어갈 때 이전 스테이지의 점수/최고 콤보를 이어받기 위한 시작값 -
+            // 캠페인 전체 누적 값이지, 이 스테이지 하나만의 값이 아니다(Match3Controller.OnAdvanceRequested 참고).
             Score = startingScore;
+            MaxCombo = startingMaxCombo;
 
             // 미션은 LevelData에 고정된 값을 쓰는 대신 매번 무작위로 생성한다 - 재료 1~3종을
             // 무작위로 골라 각각 3~8개 수집을 요구한다. LevelData.orderRequirements는 더 이상 읽지
@@ -257,9 +273,17 @@ namespace Puzzle.Core
                 hasWorkToDo = runs.Count > 0;
             }
 
+            // 콤보 카운트 = 이번 액션에서 발생한 캐스케이드 스텝 수. 예: 교환 → 매치(1) →
+            // 캐스케이드로 추가 매치(2) = 콤보 2. (04-score-combo.md 정의와 일치)
+            if (steps.Count > MaxCombo)
+            {
+                MaxCombo = steps.Count;
+            }
+
             // orderRequirements가 비어있다는 것은 스테이지가 아직 구성되지 않았다는 의미다 - 이 경우 절대 클리어되지 않는다 (LevelData 참고).
             // 클리어/게임오버 채널은 여기서 Raise하지 않는다 - Match3Controller가 캐스케이드 애니메이션이
             // 끝난 뒤(OnSwapPlaybackComplete) 이 프로퍼티들을 읽고 알맞은 타이밍에 직접 Raise한다.
+            bool wasReshuffled = false;
             if (_requirements.Length > 0 && IsOrderComplete())
             {
                 IsCleared = true;
@@ -268,8 +292,16 @@ namespace Puzzle.Core
             {
                 IsGameOver = true;
             }
+            else if (!DeadlockDetector.HasValidMove(Board))
+            {
+                // 라운드가 계속되는데 교환 가능한 매치가 하나도 없으면(데드락) 플레이어가 막혀버리므로,
+                // 여기서 즉시 섞는다 - 클리어/게임오버로 라운드가 끝나는 경우는 어차피 다음 수가
+                // 필요 없으므로 검사하지 않는다.
+                DeadlockDetector.Reshuffle(Board, _random);
+                wasReshuffled = true;
+            }
 
-            return new SwapResult(true, steps);
+            return new SwapResult(true, steps, wasReshuffled);
         }
 
         private bool IsOrderComplete()
@@ -331,7 +363,10 @@ namespace Puzzle.Core
                 int typeIndex = Board.Get(cell).TypeIndex;
                 if (_typeIndexToRequirementIndex.TryGetValue(typeIndex, out int requirementIndex))
                 {
-                    _collected[requirementIndex]++;
+                    // 한 번에 필요 개수보다 많이 제거되어도(예: 컬러 폭탄) 목표치를 넘어서까지
+                    // 계속 세지 않는다 - IsOrderComplete 자체는 >=로 비교해 문제가 없었지만,
+                    // OrderProgressEntry로 노출되는 수집량이 요구량을 넘는 걸 막아둔다.
+                    _collected[requirementIndex] = Mathf.Min(_collected[requirementIndex] + 1, _requirements[requirementIndex].requiredCount);
                 }
 
                 Board.Set(cell, TileState.EmptyState);

@@ -1,3 +1,4 @@
+using System.Collections;
 using Puzzle.Core;
 using UnityEngine;
 
@@ -10,9 +11,11 @@ using UnityEngine;
 // PuzzleEffectController.cs/PuzzleHud.cs/PuzzleSidePanel.cs를 참고하고, 게임 규칙은
 // Assets/Scripts/Puzzle/Core/를 참고할 것.
 //
-// 주문(order)이 완료되면 "다음 스테이지로" 버튼이 달린 Clear! 배너만 보여준다(PuzzleHud 참고) -
-// 더 풍성한 것(요약/보상 화면)은 아직 미정이며, 제대로 설계될 때를 대비해 NoteController.cs는
-// 사용하지 않는 채로 남겨 두었다.
+// 주문(order)이 완료되면 "다음 스테이지로" 버튼이 달린 Clear! 배너를 보여준다(PuzzleHud 참고).
+// 이동 횟수 소진(게임 오버) 시점은 캠페인의 유일한 "끝"이라, 최종 점수 + 최고 콤보 + "다시 시작"
+// 버튼이 있는 결과 화면을 보여준다 - 06-ui.md "결과 화면" 요건. 더 풍성한 것(스테이지별 요약/보상
+// 화면)은 아직 미정이며, 제대로 설계될 때를 대비해 NoteController.cs는 사용하지 않는 채로 남겨
+// 두었다.
 //
 // PuzzleHud/PuzzleSidePanel/Witch/GameManager를 서로 직접 참조하지 않도록 이벤트 채널로 묶는다
 // (CLAUDE.md 이벤트 채널 아키텍처 원칙 참고): 점수/이동 횟수/주문 진행도처럼 캐스케이드 도중에도
@@ -45,6 +48,8 @@ public class Match3Controller : MonoBehaviour
     private VoidEventChannel gameOverChannel;
     [SerializeField]
     private VoidEventChannel advanceRequestedChannel;
+    [SerializeField]
+    private VoidEventChannel restartRequestedChannel;
     [SerializeField]
     private VoidEventChannel levelStartedChannel;
 
@@ -92,6 +97,15 @@ public class Match3Controller : MonoBehaviour
     private PuzzleHud _hud;
     private PuzzleSidePanel _sidePanel;
 
+    // 창 리사이즈/화면 회전 등으로 이 GameObject(PuzzlePanel)의 RectTransform 크기가 바뀔 때마다
+    // Unity가 호출한다. BoardView는 타일 크기를 Build() 시점에 한 번만 계산해두므로, 그대로 두면
+    // 리사이즈에 반응하지 않는다 - 여기서 다시 계산하도록 알려준다. 보드가 아직 없으면(Start
+    // 이전, 또는 레벨 전환 도중) BoardView.RefreshLayout이 조용히 무시한다.
+    private void OnRectTransformDimensionsChange()
+    {
+        _boardView?.RefreshLayout();
+    }
+
     private void Start()
     {
         LevelData initialLevel = GameManager.Instance != null ? GameManager.Instance.CurrentLevel : null;
@@ -124,10 +138,11 @@ public class Match3Controller : MonoBehaviour
 
         // HUD 바는 화면 상단 전체를 가로지르고(transform.parent인 PuzzleCanvas에 부모로 연결),
         // 배너는 이 패널만 덮는다(transform인 PuzzlePanel에 부모로 연결) - PuzzleHud 참고.
-        // PuzzleHud는 scoreChangedChannel/orderClearedChannel/gameOverChannel을 스스로 구독하고
-        // advanceRequestedChannel을 스스로 Raise한다 - 이 클래스가 직접 UpdateScore/ShowComplete를
-        // 호출하지 않는다.
-        _hud = new PuzzleHud(transform.parent, transform, scoreChangedChannel, orderClearedChannel, gameOverChannel, advanceRequestedChannel);
+        // PuzzleHud는 scoreChangedChannel/orderClearedChannel을 스스로 구독하고 advanceRequestedChannel/
+        // restartRequestedChannel을 스스로 Raise한다 - 이 클래스가 직접 UpdateScore/ShowComplete를
+        // 호출하지 않는다. 단, ShowGameOver(최종 점수/최고 콤보)만은 이 클래스가 타이밍에 맞춰 직접 호출한다
+        // (OnSwapPlaybackComplete 참고).
+        _hud = new PuzzleHud(transform.parent, transform, scoreChangedChannel, orderClearedChannel, advanceRequestedChannel, restartRequestedChannel);
 
         // 미션(주문 진행도) + 이동 제한은 보드 옆의 자체 패널에 있으며, 마찬가지로 PuzzleCanvas
         // (transform.parent)에 부모로 연결되어 PuzzlePanel 자체의 로컬 스케일/장식과 무관하게
@@ -137,16 +152,19 @@ public class Match3Controller : MonoBehaviour
 
         _input.SwapRequested += OnSwapRequested;
         _input.SpecialActivationRequested += OnSpecialActivationRequested;
+        _input.TileSelected += OnTileSelected;
 
         advanceRequestedChannel.OnRaised += OnAdvanceRequested;
+        restartRequestedChannel.OnRaised += OnRestartRequested;
 
         SetupLevel(initialLevel);
     }
 
-    // 주어진 레벨에 대해 보드를 (다시) 구성하고 새 GridController를 연결한다. startingScore는
-    // 캠페인 전체 누적 점수를 다음 스테이지로 이어가기 위한 것 - 새 스테이지라고 0부터 다시 세지
-    // 않는다(OnAdvanceRequested 참고).
-    private void SetupLevel(LevelData level, int startingScore = 0)
+    // 주어진 레벨에 대해 보드를 (다시) 구성하고 새 GridController를 연결한다. startingScore/
+    // startingMaxCombo는 캠페인 전체 누적 값을 다음 스테이지로 이어가기 위한 것 - 새 스테이지라고
+    // 0부터 다시 세지 않는다(OnAdvanceRequested 참고). "다시 시작"(OnRestartRequested)만 예외적으로
+    // 0을 넘겨 캠페인을 처음부터 다시 센다.
+    private void SetupLevel(LevelData level, int startingScore = 0, int startingMaxCombo = 0)
     {
         _activeLevel = level;
 
@@ -158,11 +176,17 @@ public class Match3Controller : MonoBehaviour
         // 주문 진행도를 Raise하기 전에 미리 넘겨둔다 - PuzzleSidePanel.SetIngredientSprites 참고.
         _sidePanel.SetIngredientSprites(ingredientSprites);
 
-        _logic = new GridController(_activeLevel, new UnityRandomTileSource(), scoreChangedChannel, movesChangedChannel, orderProgressChannel, startingScore);
+        _logic = new GridController(_activeLevel, new UnityRandomTileSource(), scoreChangedChannel, movesChangedChannel, orderProgressChannel, startingScore, startingMaxCombo);
 
         _boardView.Build(_activeLevel.rows, _activeLevel.columns, _logic.Board, ingredientSprites);
 
         _sidePanel.SetMovesVisible(_logic.HasMoveLimit);
+
+        // GameManager가 없는 상태(단독 씬 테스트)에서는 스테이지 개념 자체가 없으므로 표시하지 않는다.
+        if (GameManager.Instance != null)
+        {
+            _hud.UpdateStageLabel(GameManager.Instance.CurrentStageNumber);
+        }
 
         _input.Reset();
         _input.Enabled = true;
@@ -182,7 +206,12 @@ public class Match3Controller : MonoBehaviour
         SwapResult result = _logic.TrySwap(a, b);
 
         _input.Enabled = false;
-        _effects.Play(a, b, result, OnSwapPlaybackComplete);
+        _effects.Play(a, b, result, () => OnSwapPlaybackComplete(result));
+    }
+
+    private void OnTileSelected(GridCell cell)
+    {
+        AudioManager.Instance?.PlayTileSelect();
     }
 
     private void OnSpecialActivationRequested(GridCell cell)
@@ -195,25 +224,47 @@ public class Match3Controller : MonoBehaviour
         SwapResult result = _logic.TryActivateSpecial(cell);
 
         _input.Enabled = false;
-        _effects.PlayActivation(result, OnSwapPlaybackComplete);
+        _effects.PlayActivation(result, () => OnSwapPlaybackComplete(result));
     }
 
     // 플레이어가 연쇄 애니메이션이 끝나는 것을 실제로 본 다음에야 클리어/게임오버를 공개한다 -
     // GridController가 논리적으로 클리어/게임오버를 확정하는 시점(TrySwap 내부, 애니메이션 재생
     // 전)에 곧바로 Raise하면 화면이 애니메이션 중간에 잘려 나갈 것이다. 이 타이밍 판단은
     // GridController도 각 채널 구독자도 알 수 없으므로, 이 오케스트레이터가 직접 Raise한다.
-    private void OnSwapPlaybackComplete()
+    private void OnSwapPlaybackComplete(SwapResult result)
     {
         if (_logic.IsCleared)
         {
+            AudioManager.Instance?.PlayRoundEnd();
             orderClearedChannel.Raise();
             return;
         }
 
         if (_logic.IsGameOver)
         {
+            AudioManager.Instance?.PlayRoundEnd();
+            _hud.ShowGameOver(_logic.Score, _logic.MaxCombo);
             gameOverChannel.Raise();
             return;
+        }
+
+        // 이번 액션에서 매치 스텝이 2번 이상 이어졌을 때만("콤보") 잠깐 팝업을 띄운다 - 1은 그냥
+        // 매치 한 번일 뿐 콤보라 부를 게 없다(04-score-combo.md 콤보 정의 참고).
+        if (result.Steps.Count >= 2)
+        {
+            _hud.ShowComboPopup(result.Steps.Count);
+            StartCoroutine(HideComboPopupAfterDelay());
+        }
+
+        // GridController가 캐스케이드 종료 후 데드락(교환 가능한 매치 없음)을 발견해 보드를 섞은
+        // 경우, 방금 재생된 애니메이션의 마지막 스냅샷은 이미 낡은 상태이므로 지금 보드를 그대로
+        // 다시 그려서 화면과 실제 데이터를 맞춘다. 아무 안내 없이 순간적으로 바뀌면 어색하므로,
+        // 짧은 안내 문구를 잠깐 띄운다.
+        if (result.WasReshuffled)
+        {
+            _boardView.RefreshAll(_logic.Board);
+            _hud.ShowReshuffleNotice();
+            StartCoroutine(HideReshuffleNoticeAfterDelay());
         }
 
         // 무조건 다시 활성화하지 않는다: 이 스왑의 연쇄가 방금 레벨을 클리어했거나 이동 제한을
@@ -221,11 +272,31 @@ public class Match3Controller : MonoBehaviour
         _input.Enabled = _logic.CanAcceptSwaps;
     }
 
+    // 데드락 재셔플 안내 문구를 잠깐 보여준 뒤 자동으로 숨긴다 - 배너들과 달리 플레이어가 직접
+    // 닫는 버튼이 없는 순수 안내용이라 시간이 지나면 스스로 사라져야 한다.
+    private const float ReshuffleNoticeDuration = 1.5f;
+
+    private IEnumerator HideReshuffleNoticeAfterDelay()
+    {
+        yield return new WaitForSeconds(ReshuffleNoticeDuration);
+        _hud.HideReshuffleNotice();
+    }
+
+    // 콤보 팝업도 같은 방식으로 잠깐 보여준 뒤 스스로 사라진다.
+    private const float ComboPopupDuration = 1.2f;
+
+    private IEnumerator HideComboPopupAfterDelay()
+    {
+        yield return new WaitForSeconds(ComboPopupDuration);
+        _hud.HideComboPopup();
+    }
+
     private void OnAdvanceRequested()
     {
-        // 다음 스테이지로 넘어가도 점수는 초기화하지 않고 이어간다 - 캠페인 전체 누적 점수이지
-        // 스테이지 하나만의 점수가 아니다.
+        // 다음 스테이지로 넘어가도 점수/최고 콤보는 초기화하지 않고 이어간다 - 캠페인 전체 누적
+        // 값이지 스테이지 하나만의 값이 아니다.
         int carriedScore = _logic.Score;
+        int carriedMaxCombo = _logic.MaxCombo;
 
         LevelData nextLevel = null;
         if (GameManager.Instance != null)
@@ -249,7 +320,33 @@ public class Match3Controller : MonoBehaviour
             return;
         }
 
-        SetupLevel(nextLevel, carriedScore);
+        SetupLevel(nextLevel, carriedScore, carriedMaxCombo);
+    }
+
+    // 결과 화면의 "다시 시작" 버튼에서 호출된다 - 캠페인 진행도(GameManager)를 스테이지 1로
+    // 되돌리고, 점수/최고 콤보도 0부터 다시 센다(OnAdvanceRequested와 달리 여기서는 값을 이어가지
+    // 않는 게 의도된 동작이다).
+    private void OnRestartRequested()
+    {
+        LevelData firstLevel = null;
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ResetProgress();
+            firstLevel = GameManager.Instance.CurrentLevel;
+        }
+
+        if (firstLevel == null)
+        {
+            firstLevel = levelData;
+        }
+
+        if (firstLevel == null)
+        {
+            Debug.LogError("Match3Controller: no level available to restart. Assign a levelData fallback, or fix GameManager's StageSequence.");
+            return;
+        }
+
+        SetupLevel(firstLevel, 0, 0);
     }
 
     // BoardView/PuzzleSidePanel은 렌더링에만 관여하므로 IngredientData 자체를 몰라도 되고, 스프라이트만

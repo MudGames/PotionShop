@@ -6,8 +6,36 @@
     <title>Unity Web Player | PotionShop</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
+    <style>
+      #rotate-overlay {
+        display: none;
+      }
+      @media (orientation: portrait) and (max-width: 900px) {
+        #rotate-overlay {
+          display: flex;
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          background: #1a1030;
+          color: #fff;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          font-family: sans-serif;
+          padding: 24px;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="rotate-overlay">
+      <div style="font-size: 48px; margin-bottom: 16px;">📱↻</div>
+      <div style="font-size: 18px; line-height: 1.6;">
+        화면을 가로로 돌려주세요<br>
+        <span style="font-size: 14px; opacity: 0.8;">Please rotate your device to landscape</span>
+      </div>
+    </div>
     <div id="unity-container" class="unity-desktop">
       <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
       <div id="unity-loading-bar">

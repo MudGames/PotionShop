@@ -131,9 +131,13 @@
 
 
       } else {
-        // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
-        canvas.style.width = "960px";
-        canvas.style.height = "600px";
+        // Desktop style: canvas fills the available browser window
+        // (responsive) instead of a fixed pixel size, so windowed and
+        // fullscreen viewing use the same aspect-ratio handling
+        // (PotionShop 커스텀: 기존 기본 템플릿은 960x600 고정이라 창모드/전체화면
+        // 사이에 UI 레터박스 기준이 달라지는 문제가 있어 반응형으로 변경함).
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
       }
 
       document.querySelector("#unity-loading-bar").style.display = "block";

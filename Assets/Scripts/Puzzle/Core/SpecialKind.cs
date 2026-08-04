@@ -5,7 +5,6 @@ namespace Puzzle.Core
         None,
         LineRow,
         LineColumn,
-        ColorBomb,
         RadiusBomb
     }
 }

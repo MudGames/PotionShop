@@ -1,11 +1,12 @@
+using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 점수 HUD 바와 Clear!/결과(게임 오버) 배너를 담당한다 - 순수한 UI 상태와 위젯 생성만 하며 게임
-// 규칙은 없다. 미션(주문 진행도)과 이동 제한 표시는 이 상단 바가 아니라 퍼즐 보드 옆에 위치한
-// 자체 PuzzleSidePanel에 있다. 어두운 배경 패널과 텍스트 외곽선 덕분에 뒤에 무엇이 보이든
-// 가독성이 유지된다.
+// 점수/남은 이동 HUD 바와 Clear!/결과(게임 오버) 배너를 담당한다 - 순수한 UI 상태와 위젯 생성만
+// 하며 게임 규칙은 없다. 미션(주문 진행도)은 이 상단 바가 아니라 퍼즐 보드 옆에 위치한 자체
+// PuzzleSidePanel에 있다(남은 이동은 2026-08-04부터 이 바로 이동함 - 점수 오른쪽에 나란히 배치).
+// 어두운 배경 패널과 텍스트 외곽선 덕분에 뒤에 무엇이 보이든 가독성이 유지된다.
 //
 // Match3Controller/GameManager를 직접 참조하지 않는다 - ScoreChangedChannel/OrderClearedChannel을
 // 구독해 스스로 갱신하고, Clear! 배너/결과 화면의 버튼은 각각 AdvanceRequestedChannel/
@@ -18,6 +19,7 @@ public sealed class PuzzleHud
     private static readonly Color PanelBackgroundColor = new Color(0.0f, 0.0f, 0.0f, 0.55f);
 
     private readonly TextMeshProUGUI _scoreLabel;
+    private readonly TextMeshProUGUI _movesLabel;
     private readonly TextMeshProUGUI _stageLabel;
     private readonly GameObject _completeBanner;
     private readonly GameObject _gameOverBanner;
@@ -37,6 +39,7 @@ public sealed class PuzzleHud
         Transform hudParent,
         Transform bannerParent,
         IntEventChannel scoreChangedChannel,
+        IntEventChannel movesChangedChannel,
         VoidEventChannel orderClearedChannel,
         VoidEventChannel advanceRequestedChannel,
         VoidEventChannel restartRequestedChannel)
@@ -47,12 +50,13 @@ public sealed class PuzzleHud
         RectTransform hudRect = CreateHudBar(hudParent);
         CreateFillBackground(hudRect);
 
+        // 점수는 HUD 바 정중앙, 남은 이동 횟수는 오른쪽 끝에 배치한다(2026-08-04, 이전에는
+        // PuzzleSidePanel에 있었다가 한때 점수 바로 오른쪽에 있었음).
         _scoreLabel = CreateHudLabel(hudRect, "ScoreLabel", new Vector2(0.0f, 0.0f), new Vector2(1.0f, 1.0f), TextAlignmentOptions.Midline);
+        _movesLabel = CreateHudLabel(hudRect, "MovesLabel", new Vector2(0.72f, 0.0f), new Vector2(0.98f, 1.0f), TextAlignmentOptions.MidlineRight);
 
-        // 화면 중앙에 뜨는 점수 라벨과 안 겹치도록 왼쪽 구석에만 배치한다 - HudBar가 화면 폭 전체를
-        // 가로지르는데(0-1), 점수 텍스트는 중앙 정렬이라 왼쪽 끝은 항상 비어있다.
-        _stageLabel = CreateHudLabel(hudRect, "StageLabel", new Vector2(0.02f, 0.0f), new Vector2(0.3f, 1.0f), TextAlignmentOptions.MidlineLeft);
-        _stageLabel.fontSize = 24.0f;
+        // 왼쪽 구석에 배치, 점수/이동 라벨과 같은 폰트 크기(CreateHudLabel 기본값 32) 사용.
+        _stageLabel = CreateHudLabel(hudRect, "StageLabel", new Vector2(0.02f, 0.0f), new Vector2(0.28f, 1.0f), TextAlignmentOptions.MidlineLeft);
 
         _completeBanner = CreateCompleteBanner(bannerParent);
         _gameOverBanner = CreateGameOverBanner(bannerParent, out _gameOverScoreLabel, out _gameOverComboLabel);
@@ -60,6 +64,7 @@ public sealed class PuzzleHud
         _comboPopup = CreateComboPopup(bannerParent, out _comboPopupLabel);
 
         scoreChangedChannel.OnRaised += UpdateScore;
+        movesChangedChannel.OnRaised += UpdateMoves;
         orderClearedChannel.OnRaised += ShowComplete;
         advanceRequestedChannel.OnRaised += HideComplete;
         restartRequestedChannel.OnRaised += HideGameOver;
@@ -68,6 +73,18 @@ public sealed class PuzzleHud
     private void UpdateScore(int score)
     {
         _scoreLabel.text = $"점수: {score}";
+    }
+
+    private void UpdateMoves(int movesRemaining)
+    {
+        _movesLabel.text = $"남은 이동: {movesRemaining}";
+    }
+
+    // 이동 횟수 무제한 레벨(LevelData.moveLimit == 0)에서는 라벨 자체를 숨긴다 - 이전에는
+    // PuzzleSidePanel.SetMovesVisible이 담당했다.
+    public void SetMovesVisible(bool visible)
+    {
+        _movesLabel.gameObject.SetActive(visible);
     }
 
     // 채널 대신 Match3Controller가 SetupLevel마다 직접 호출한다(레벨 설정값과 같은 이유로 -
@@ -118,18 +135,78 @@ public sealed class PuzzleHud
     }
 
     // 액션(교환/스페셜 활성화) 하나가 끝난 뒤, 그 안에서 발생한 콤보 스텝 수가 2 이상일 때만
-    // Match3Controller가 호출한다(1은 그냥 매치 한 번일 뿐 "콤보"라 부를 게 없음) - 04-score-combo.md
-    // 콤보 정의 참고. 자동으로 숨기는 타이밍은 ReshuffleNotice와 마찬가지로 Match3Controller의
-    // 코루틴이 담당한다.
-    public void ShowComboPopup(int comboCount)
+    // Match3Controller가 StartCoroutine으로 구동한다(1은 그냥 매치 한 번일 뿐 "콤보"라 부를 게
+    // 없음 - 04-score-combo.md 콤보 정의 참고). PuzzleHud는 MonoBehaviour가 아니라 스스로 코루틴을
+    // 시작할 수 없으므로, 이 메서드 자체가 등장→유지→퇴장까지 전체 생애주기를 스스로 책임지는
+    // IEnumerator를 반환한다(BoardView/TileView의 Animate* 메서드들과 같은 패턴).
+    //
+    // 콤보 규모(comboCount)에 비례해 최종 크기가 커지고, 그 크기까지 살짝 튀어오르듯(ease-out-back)
+    // 팝인된 뒤 잠시 유지되다 축소+페이드로 사라진다(2026-08-04, "콤보 폰트도 동적으로 보이도록"
+    // 피드백 - 타일 제거 팝 연출(PuzzleEffectController.ComputeClearPopScale)과 같은 방향).
+    private const float ComboPopupPopDuration = 0.2f;
+    private const float ComboPopupHoldDuration = 0.8f;
+    private const float ComboPopupExitDuration = 0.2f;
+
+    public IEnumerator AnimateComboPopup(int comboCount)
     {
         _comboPopupLabel.text = $"Combo x{comboCount}!";
+        Color labelColor = _comboPopupLabel.color;
+        _comboPopupLabel.color = new Color(labelColor.r, labelColor.g, labelColor.b, 1f);
         _comboPopup.SetActive(true);
+
+        float targetScale = ComputeComboPopupScale(comboCount);
+
+        float elapsed = 0f;
+        while (elapsed < ComboPopupPopDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / ComboPopupPopDuration);
+            _comboPopup.transform.localScale = Vector3.one * (targetScale * EaseOutBack(t));
+            yield return null;
+        }
+
+        _comboPopup.transform.localScale = Vector3.one * targetScale;
+
+        yield return new WaitForSeconds(ComboPopupHoldDuration);
+
+        elapsed = 0f;
+        while (elapsed < ComboPopupExitDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / ComboPopupExitDuration);
+            _comboPopup.transform.localScale = Vector3.one * Mathf.Lerp(targetScale, targetScale * 0.7f, t);
+            _comboPopupLabel.color = new Color(labelColor.r, labelColor.g, labelColor.b, Mathf.Lerp(1f, 0f, t));
+            yield return null;
+        }
+
+        _comboPopup.SetActive(false);
+        _comboPopup.transform.localScale = Vector3.one;
+        _comboPopupLabel.color = new Color(labelColor.r, labelColor.g, labelColor.b, 1f);
     }
 
-    public void HideComboPopup()
+    // 콤보 스텝 수가 클수록 팝업이 조금씩 더 크게 보이게 한다 - 타일 제거 팝 연출의 매치/콤보 규모
+    // 비례 크기 확대(PuzzleEffectController.ComputeClearPopScale)와 같은 취지.
+    private static float ComputeComboPopupScale(int comboCount)
     {
-        _comboPopup.SetActive(false);
+        if (comboCount >= 5)
+        {
+            return 1.3f;
+        }
+
+        if (comboCount >= 3)
+        {
+            return 1.15f;
+        }
+
+        return 1.0f;
+    }
+
+    private static float EaseOutBack(float t)
+    {
+        const float c1 = 1.70158f;
+        const float c3 = c1 + 1f;
+        float shifted = t - 1f;
+        return 1f + c3 * shifted * shifted * shifted + c1 * shifted * shifted;
     }
 
     private static RectTransform CreateHudBar(Transform parent)
@@ -377,6 +454,10 @@ public sealed class PuzzleHud
         label.color = new Color(1.0f, 0.84f, 0.2f);
         label.outlineWidth = 0.25f;
         label.outlineColor = Color.black;
+        // 보드 중앙(세로 40~55% 영역)에 걸치므로 raycastTarget 기본값(true)을 그대로 두면 팝업이
+        // 떠 있는 동안 그 아래 타일 클릭/드래그를 가로챈다 - 이 팝업은 게임을 멈추지 않는 장식용
+        // 알림이라 입력을 막을 이유가 없다(2026-08-04 버그 픽스).
+        label.raycastTarget = false;
 
         popupObject.SetActive(false);
         return popupObject;

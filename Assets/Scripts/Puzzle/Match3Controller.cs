@@ -4,8 +4,8 @@ using UnityEngine;
 
 // 얇은 Presentation 오케스트레이터: Puzzle.Core.GridController 인스턴스와 그 Presentation
 // 협력 객체들 - BoardView(그리드 레이아웃/렌더링/애니메이션), TileController(클릭 -> 스왑
-// 요청), PuzzleEffectController(연쇄 애니메이션 재생), PuzzleHud(점수/배너), 그리고
-// PuzzleSidePanel(미션/주문 진행도 + 이동 제한, 보드 옆의 자체 패널) - 를 생성하고
+// 요청), PuzzleEffectController(연쇄 애니메이션 재생), PuzzleHud(점수/남은 이동/배너), 그리고
+// PuzzleSidePanel(미션/주문 진행도, 보드 옆의 자체 패널) - 를 생성하고
 // 서로 연결한다. 게임 규칙도, 레이아웃 계산도, 애니메이션 타이밍 로직도, UI 위젯 생성 로직도
 // 이 클래스 자체에는 없다; 그런 것들은 이웃한 BoardView.cs/TileController.cs/
 // PuzzleEffectController.cs/PuzzleHud.cs/PuzzleSidePanel.cs를 참고하고, 게임 규칙은
@@ -57,25 +57,15 @@ public class Match3Controller : MonoBehaviour
     [SerializeField]
     private float cellSpacingRatio = 0.08f; // 셀 크기 대비 간격 비율
 
-    // 첫 탭 선택 링 - UI 스프라이트(TileView.CreateSelectionOverlay 참고)로, 어떤 타일이 플레이어의
-    // 대기 중인 첫 번째 선택일 때 표시된다(TileController 참고).
+    // 스페셜 타일 표시(2026-08-04, 행/열/범위 3종으로 재정리 - 기존 컬러 폭탄은 활성화 시 배지가
+    // 재료 아이콘을 가려버려 어떤 재료였는지 알 수 없는 문제로 제거). 셋 다 재료 아이콘을 완전히
+    // 덮는 물약 배지로 표시되며 서로 다른 색이라 헷갈릴 일이 없다: 행 폭탄은 빨간 물약, 열 폭탄은
+    // 초록 물약, 레이디우스 폭탄(주변 3x3, 5칸 이상 매치도 이걸 생성함)은 파란 물약.
+    // TileView.RefreshSpecialEdges 참고.
     [SerializeField]
-    private Sprite tileSelectionSprite;
-    // 타일 대비 크기 비율 (1.0 = 타일과 같은 크기, 1.15 = 15% 더 큼).
+    private Sprite rowBombSprite;
     [SerializeField]
-    private float tileSelectionScale = 1.15f;
-    // 타일 중심으로부터의 오프셋, 타일 자체 크기와 같은 단위.
-    [SerializeField]
-    private Vector2 tileSelectionOffset = Vector2.zero;
-
-    // 스페셜 타일 표시. 셋 다 재료 아이콘을 완전히 덮는 물약 배지로 표시되며, 서로 다른 색이라
-    // 헷갈릴 일이 없다: 라인 폭탄(행/열 공용)은 빨간 물약, 컬러 폭탄은 초록 물약, 레이디우스
-    // 폭탄(주변 3x3)은 파란 물약. LineRow/LineColumn이 배지를 공유하므로 활성화 전에는 행/열
-    // 방향을 미리 알 수 없다(의도된 단순화). TileView.RefreshSpecialEdges 참고.
-    [SerializeField]
-    private Sprite lineBombSprite;
-    [SerializeField]
-    private Sprite colorBombSprite;
+    private Sprite columnBombSprite;
     [SerializeField]
     private Sprite radiusBombSprite;
 
@@ -96,6 +86,8 @@ public class Match3Controller : MonoBehaviour
     private PuzzleEffectController _effects;
     private PuzzleHud _hud;
     private PuzzleSidePanel _sidePanel;
+    private TutorialPanel _tutorial;
+    private Coroutine _comboPopupCoroutine;
 
     // 창 리사이즈/화면 회전 등으로 이 GameObject(PuzzlePanel)의 RectTransform 크기가 바뀔 때마다
     // Unity가 호출한다. BoardView는 타일 크기를 Build() 시점에 한 번만 계산해두므로, 그대로 두면
@@ -120,10 +112,11 @@ public class Match3Controller : MonoBehaviour
             return;
         }
 
-        _boardView = new BoardView(buttonContainer, cellSpacingRatio, tileSelectionSprite, tileSelectionScale, tileSelectionOffset, lineBombSprite, colorBombSprite, radiusBombSprite);
+        _boardView = new BoardView(buttonContainer, cellSpacingRatio, rowBombSprite, columnBombSprite, radiusBombSprite);
         // 이 시점에는 _logic이 아직 존재하지 않는다(레벨별로 SetupLevel에서 생성됨) - 그래서
         // 이 predicate는 매 클릭마다 지연 평가로 읽는다. SetupLevel이 끝날 때까지 입력이
         // 비활성 상태로 유지되므로(아래 Reset/Enabled 참고) 이 방식은 안전하다.
+        _boardView.CanAcceptSwap = (a, b) => _logic != null && _logic.WouldAcceptSwap(a, b);
         _input = new TileController(
             _boardView,
             cell => _logic != null && _logic.Board.Get(cell).Special != SpecialKind.None,
@@ -138,17 +131,20 @@ public class Match3Controller : MonoBehaviour
 
         // HUD 바는 화면 상단 전체를 가로지르고(transform.parent인 PuzzleCanvas에 부모로 연결),
         // 배너는 이 패널만 덮는다(transform인 PuzzlePanel에 부모로 연결) - PuzzleHud 참고.
-        // PuzzleHud는 scoreChangedChannel/orderClearedChannel을 스스로 구독하고 advanceRequestedChannel/
-        // restartRequestedChannel을 스스로 Raise한다 - 이 클래스가 직접 UpdateScore/ShowComplete를
-        // 호출하지 않는다. 단, ShowGameOver(최종 점수/최고 콤보)만은 이 클래스가 타이밍에 맞춰 직접 호출한다
-        // (OnSwapPlaybackComplete 참고).
-        _hud = new PuzzleHud(transform.parent, transform, scoreChangedChannel, orderClearedChannel, advanceRequestedChannel, restartRequestedChannel);
+        // PuzzleHud는 scoreChangedChannel/movesChangedChannel/orderClearedChannel을 스스로
+        // 구독하고 advanceRequestedChannel/restartRequestedChannel을 스스로 Raise한다 - 이 클래스가
+        // 직접 UpdateScore/ShowComplete를 호출하지 않는다. 단, ShowGameOver(최종 점수/최고 콤보)만은
+        // 이 클래스가 타이밍에 맞춰 직접 호출한다(OnSwapPlaybackComplete 참고).
+        _hud = new PuzzleHud(transform.parent, transform, scoreChangedChannel, movesChangedChannel, orderClearedChannel, advanceRequestedChannel, restartRequestedChannel);
 
-        // 미션(주문 진행도) + 이동 제한은 보드 옆의 자체 패널에 있으며, 마찬가지로 PuzzleCanvas
+        // 미션(주문 진행도)은 보드 옆의 자체 패널에 있으며, 마찬가지로 PuzzleCanvas
         // (transform.parent)에 부모로 연결되어 PuzzlePanel 자체의 로컬 스케일/장식과 무관하게
-        // 위치가 유지된다 - PuzzleSidePanel 참고. movesChangedChannel/orderProgressChannel도
-        // 스스로 구독한다.
-        _sidePanel = new PuzzleSidePanel(transform.parent, movesChangedChannel, orderProgressChannel);
+        // 위치가 유지된다 - PuzzleSidePanel 참고. orderProgressChannel도 스스로 구독한다.
+        _sidePanel = new PuzzleSidePanel(transform.parent, orderProgressChannel);
+
+        // 매치3 기본 규칙 + 특수 타일(물약) 3종 설명 - PuzzleSidePanel(미션 패널)과 대칭되는 보드
+        // 왼쪽 자리에 놓이는 상시 참고용 패널이라, 모달처럼 열고 닫는 상태가 따로 없다.
+        _tutorial = new TutorialPanel(transform.parent, rowBombSprite, columnBombSprite, radiusBombSprite);
 
         _input.SwapRequested += OnSwapRequested;
         _input.SpecialActivationRequested += OnSpecialActivationRequested;
@@ -176,11 +172,14 @@ public class Match3Controller : MonoBehaviour
         // 주문 진행도를 Raise하기 전에 미리 넘겨둔다 - PuzzleSidePanel.SetIngredientSprites 참고.
         _sidePanel.SetIngredientSprites(ingredientSprites);
 
-        _logic = new GridController(_activeLevel, new UnityRandomTileSource(), scoreChangedChannel, movesChangedChannel, orderProgressChannel, startingScore, startingMaxCombo);
+        // 미션 난이도(재료 종류 수/요구 개수)는 GameManager.CurrentStageNumber를 따라 올라간다 -
+        // GameManager가 없는 단독 씬 테스트 환경에서는 기본값 1(가장 쉬운 난이도)로 생성된다.
+        int stageNumber = GameManager.Instance != null ? GameManager.Instance.CurrentStageNumber : 1;
+        _logic = new GridController(_activeLevel, new UnityRandomTileSource(), scoreChangedChannel, movesChangedChannel, orderProgressChannel, startingScore, startingMaxCombo, stageNumber);
 
         _boardView.Build(_activeLevel.rows, _activeLevel.columns, _logic.Board, ingredientSprites);
 
-        _sidePanel.SetMovesVisible(_logic.HasMoveLimit);
+        _hud.SetMovesVisible(_logic.HasMoveLimit);
 
         // GameManager가 없는 상태(단독 씬 테스트)에서는 스테이지 개념 자체가 없으므로 표시하지 않는다.
         if (GameManager.Instance != null)
@@ -188,8 +187,8 @@ public class Match3Controller : MonoBehaviour
             _hud.UpdateStageLabel(GameManager.Instance.CurrentStageNumber);
         }
 
-        _input.Reset();
         _input.Enabled = true;
+        _boardView.InputEnabled = true;
 
         // 오프닝 비트: 클리어/게임 오버 반응과 마찬가지로, 마녀가 실제로 무언가를 요청하는 순간을
         // 준다 - 그렇지 않으면 주문이 존재한다는 유일한 단서가 HUD의 진행도 숫자뿐이게 된다.
@@ -206,6 +205,7 @@ public class Match3Controller : MonoBehaviour
         SwapResult result = _logic.TrySwap(a, b);
 
         _input.Enabled = false;
+        _boardView.InputEnabled = false;
         _effects.Play(a, b, result, () => OnSwapPlaybackComplete(result));
     }
 
@@ -224,6 +224,7 @@ public class Match3Controller : MonoBehaviour
         SwapResult result = _logic.TryActivateSpecial(cell);
 
         _input.Enabled = false;
+        _boardView.InputEnabled = false;
         _effects.PlayActivation(result, () => OnSwapPlaybackComplete(result));
     }
 
@@ -249,11 +250,18 @@ public class Match3Controller : MonoBehaviour
         }
 
         // 이번 액션에서 매치 스텝이 2번 이상 이어졌을 때만("콤보") 잠깐 팝업을 띄운다 - 1은 그냥
-        // 매치 한 번일 뿐 콤보라 부를 게 없다(04-score-combo.md 콤보 정의 참고).
+        // 매치 한 번일 뿐 콤보라 부를 게 없다(04-score-combo.md 콤보 정의 참고). 콤보 팝업 애니메이션
+        // 재생 중에도 입력은 이미 다시 켜지므로(아래), 팝업이 끝나기 전에 다음 콤보가 또 발생하면
+        // 이전 코루틴을 먼저 멈춰야 한다 - 안 그러면 두 코루틴이 같은 GameObject의 크기/텍스트/
+        // 색상을 동시에 건드려 깜빡이거나 어긋나 보일 수 있다(2026-08-04 버그 픽스).
         if (result.Steps.Count >= 2)
         {
-            _hud.ShowComboPopup(result.Steps.Count);
-            StartCoroutine(HideComboPopupAfterDelay());
+            if (_comboPopupCoroutine != null)
+            {
+                StopCoroutine(_comboPopupCoroutine);
+            }
+
+            _comboPopupCoroutine = StartCoroutine(_hud.AnimateComboPopup(result.Steps.Count));
         }
 
         // GridController가 캐스케이드 종료 후 데드락(교환 가능한 매치 없음)을 발견해 보드를 섞은
@@ -270,6 +278,7 @@ public class Match3Controller : MonoBehaviour
         // 무조건 다시 활성화하지 않는다: 이 스왑의 연쇄가 방금 레벨을 클리어했거나 이동 제한을
         // 소진시켰다면, 위 분기에서 이미 입력을 비활성화했으므로 그 상태가 유지되어야 한다.
         _input.Enabled = _logic.CanAcceptSwaps;
+        _boardView.InputEnabled = _logic.CanAcceptSwaps;
     }
 
     // 데드락 재셔플 안내 문구를 잠깐 보여준 뒤 자동으로 숨긴다 - 배너들과 달리 플레이어가 직접
@@ -282,14 +291,6 @@ public class Match3Controller : MonoBehaviour
         _hud.HideReshuffleNotice();
     }
 
-    // 콤보 팝업도 같은 방식으로 잠깐 보여준 뒤 스스로 사라진다.
-    private const float ComboPopupDuration = 1.2f;
-
-    private IEnumerator HideComboPopupAfterDelay()
-    {
-        yield return new WaitForSeconds(ComboPopupDuration);
-        _hud.HideComboPopup();
-    }
 
     private void OnAdvanceRequested()
     {

@@ -40,7 +40,7 @@
   - `Texture/Ore & Gem/Crystal.png` — 마법 수정
   - `Texture/Monster Part/Feather.png` — 요정 깃털
   - 임시 플레이스홀더가 아니라 현재 스펙상의 확정 아이콘 — 5단계 아트 작업에서 자체 제작 아트로 교체할 수도, 그대로 갈 수도 있음(결정 시 여기 갱신).
-  - **특수 타일(폭탄) 배지**(`Docs/feature-spec/12-special-tiles.md` 참고, `Match3Controller`의 `lineBombSprite`/`colorBombSprite`/`radiusBombSprite`): `Texture/Potion/Red Potion.png`(라인 폭탄, 행/열 공용), `Texture/Potion/Green Potion.png`(컬러 폭탄), `Texture/Potion/Blue Potion.png`(레이디우스 폭탄)
+  - **특수 타일(물약) 배지**(`Docs/feature-spec/12-special-tiles.md` 참고, `Match3Controller`의 `rowBombSprite`/`columnBombSprite`/`radiusBombSprite`, 2026-08-04 재설계): `Texture/Potion/Red Potion 3.png`(행 폭탄, 플레이어에게는 "빨간 물약"으로 표시), `Texture/Potion/Green Potion 3.png`(열 폭탄, "초록 물약"), `Texture/Potion/Blue Potion 3.png`(범위 폭탄, "파란 물약") — 기존 컬러 폭탄(ColorBomb)용이었던 Green Potion을 열 폭탄으로 재사용
 - **저장소 처리**: 폴더 전체를 `.gitignore`로 제외. 위 1번과 동일한 GUID 참조 깨짐 주의사항 적용됨 — **`Assets/Data/Ingredients/*.asset`은 커밋되는데 정작 그 안이 참조하는 스프라이트 원본은 저장소에 없다는 뜻**이므로, 다른 PC에서 clone 후 바로 플레이하려면 Cainos 팩을 로컬에 재설치해야 함(재설치 시 동일 경로에 넣으면 기존 GUID와 일치해 참조가 유지됨 — 팩 자체를 다시 받는 것뿐이라 새 GUID 문제는 발생하지 않음. 팩을 아예 다른 경로/버전으로 받으면 깨짐).
 
 ## 4. Casual Physics Puzzle BE6 (SFX)

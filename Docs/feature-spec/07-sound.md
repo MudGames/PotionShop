@@ -14,7 +14,7 @@ BGM/SFX 전부 `Assets/Scripts/Managers/AudioManager.cs` 하나가 담당한다.
 ## SFX (트리거 ↔ 구현 위치)
 | 트리거 | 재생 시점 | 비고 |
 |---|---|---|
-| 타일 선택 | `TileController.TileSelected` → `Match3Controller.OnTileSelected` | 첫 탭 선택 시 |
+| 타일 선택 | `TileController.TileSelected` → `Match3Controller.OnTileSelected` | 일반 타일 탭(드래그 아님) 시 |
 | 교환 성공(매치) | `PuzzleEffectController.PlayCascadeRoutine` step 0 | 매치 개수별 피치 구분은 미구현(스펙상 선택 사항) |
 | 교환 실패(매치 없음) | `PuzzleEffectController.PlayRoutine`, `!result.Accepted` | |
 | 캐스케이드 연쇄 | `PuzzleEffectController.PlayCascadeRoutine` step 1+ | 전용 AudioSource에서 Stop 후 재생해 "겹치면 최근 것만" 만족 |

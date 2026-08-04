@@ -9,9 +9,9 @@ public sealed class TileViewPool
 {
     private readonly PoolManager<TileView> _pool;
 
-    public TileViewPool(Transform parent, Sprite selectionSprite, float selectionScale, Vector2 selectionOffset, Sprite lineBombSprite, Sprite colorBombSprite, Sprite radiusBombSprite)
+    public TileViewPool(Transform parent, Sprite rowBombSprite, Sprite columnBombSprite, Sprite radiusBombSprite)
     {
-        _pool = new PoolManager<TileView>(() => new TileView(parent, selectionSprite, selectionScale, selectionOffset, lineBombSprite, colorBombSprite, radiusBombSprite));
+        _pool = new PoolManager<TileView>(() => new TileView(parent, rowBombSprite, columnBombSprite, radiusBombSprite));
     }
 
     public void ReturnAll()

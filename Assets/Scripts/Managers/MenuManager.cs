@@ -8,13 +8,6 @@ using UnityEngine.UI;
 // 동일한 런타임 위젯 생성 패턴이다(PuzzleHud 등).
 public sealed class MenuManager : MonoBehaviour
 {
-    // PuzzlePanel/노트 페이지가 쓰는 것과 동일한 장식용 9-슬라이스 테두리(Menu.png) - 타이틀
-    // 뒤에 배치해서 배경 위에 텍스트만 떠 있는 게 아니라 노트북의 한 페이지처럼 보이게 한다.
-    // 선택 사항.
-    [SerializeField]
-    private Sprite frameSprite;
-
-    [SerializeField]
     private string mainSceneName = "Main";
 
     private void Start()
@@ -36,10 +29,10 @@ public sealed class MenuManager : MonoBehaviour
 
         buttonObject.GetComponent<Image>().color = new Color(1.0f, 1.0f, 1.0f, 0.85f);
         buttonObject.GetComponent<Button>().onClick.AddListener(onClick);
+        buttonObject.AddComponent<ButtonHoverAnimator>();
 
         GameObject labelObject = new GameObject("Label", typeof(RectTransform));
         labelObject.transform.SetParent(buttonObject.transform, false);
-
         RectTransform labelRect = labelObject.GetComponent<RectTransform>();
         labelRect.anchorMin = Vector2.zero;
         labelRect.anchorMax = Vector2.one;

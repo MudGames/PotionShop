@@ -269,8 +269,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5dac60433a0be644e8f9fe57b72f4d2e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  frameSprite: {fileID: -198938125430884413, guid: b6bffc37761cd2e4288eb7e2144d999b, type: 3}
-  mainSceneName: Main
+  startButtonSprite: {fileID: 0}
+  quitButtonSprite: {fileID: 0}
 --- !u!1 &120
 GameObject:
   m_ObjectHideFlags: 0
@@ -431,7 +431,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: -100
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 5055866386903784062, guid: af3cb7291fd12b4428bb78cdd1bdf4fe, type: 3}
+  m_Sprite: {fileID: -7352339073622421304, guid: af3cb7291fd12b4428bb78cdd1bdf4fe, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0

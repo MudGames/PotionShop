@@ -15,6 +15,8 @@ public sealed class BoardView
     private readonly Transform _container;
     private readonly float _cellSpacingRatio;
     private readonly TileViewPool _pool;
+    private readonly BurstEffectPool _burstPool;
+    private readonly BurstShardPool _shardPool;
 
     // 채워진 칸이 보여주는 중립적인 "슬롯" 배경색 - 재료별 색상 팔레트는 없고, 재료 스프라이트만
     // 으로 타일의 정체성을 나타낸다. 칸의 고정 배경(CreateBackgroundGrid)에서만 쓰인다 - 말(아이콘/
@@ -79,11 +81,15 @@ public sealed class BoardView
     // 보드 범위를 벗어나면(가장자리 칸에서 바깥쪽으로 드래그한 경우) 발생시키지 않는다.
     public event Action<GridCell, GridCell> TileSwiped;
 
-    public BoardView(Transform container, float cellSpacingRatio, Sprite rowBombSprite, Sprite columnBombSprite, Sprite radiusBombSprite)
+    public BoardView(Transform container, float cellSpacingRatio, Sprite rowBombSprite, Sprite columnBombSprite, Sprite radiusBombSprite, Sprite specialGlowSprite, Sprite matchBurstSprite)
     {
         _container = container;
         _cellSpacingRatio = cellSpacingRatio;
-        _pool = new TileViewPool(container, rowBombSprite, columnBombSprite, radiusBombSprite);
+        _pool = new TileViewPool(container, rowBombSprite, columnBombSprite, radiusBombSprite, specialGlowSprite);
+        _burstPool = new BurstEffectPool(container, matchBurstSprite);
+        // 파편도 같은 스프라이트를 작게 재사용한다(따로 새 에셋 불필요 - 이미 따뜻한 빛 색감의
+        // 원형 그라디언트라 작은 스파크로도 잘 어울린다).
+        _shardPool = new BurstShardPool(container, matchBurstSprite);
     }
 
     public void Build(int rows, int columns, Board board, Sprite[] sprites)
@@ -269,16 +275,48 @@ public sealed class BoardView
         yield return RunParallel(viewA.AnimateMoveTo(posA, duration), viewB.AnimateMoveTo(posB, duration));
     }
 
-    // 제거된 모든 셀을 동시에 페이드아웃시킨 다음, 빈 상태의 비주얼로 즉시 전환한다.
+    // 제거된 모든 셀을 동시에 페이드아웃시킨 다음, 빈 상태의 비주얼로 즉시 전환한다. 같은 타이밍에
+    // 각 셀 위치에서 짧게 번쩍이는 버스트 이펙트와, 사방으로 흩날리는 작은 파편들도 같이 재생한다
+    // ("타일이 매치했을 때 터지는 연출이 필요합니다" 요청, 2026-08-05) - popScale이 클수록(매치/
+    // 캐스케이드 규모가 클수록) 버스트/파편도 커지고 더 멀리 날아간다. 처음엔 제자리에서 커지기만
+    // 하는 플래시 하나만 있었는데 "너무 정적입니다"는 후속 피드백으로 파편이 실제로 밖으로
+    // 튀어나가는 움직임을 추가했다(BurstShardView). 버스트/파편 지속시간은 타일 페이드보다
+    // 일부러 조금 더 길게(1.5배) 잡아서 반짝임이 눈에 띌 시간을 준다 - RunAllParallel이 가장 긴
+    // 루틴 기준으로 기다리므로 스텝 전체 대기시간도 그만큼(기본값 기준 최대 +0.075초) 늘어나지만,
+    // 콤보가 잦은 매치3에서 체감하기 어려운 수준이라 받아들였다.
+    private const float BurstDurationMultiplier = 1.5f;
+    private const int ShardCountPerCell = 6;
+    private const float ShardJitterDegrees = 20f;
+
     public IEnumerator AnimateClear(IReadOnlyList<GridCell> clearedCells, float duration, float popScale)
     {
-        List<IEnumerator> routines = new List<IEnumerator>(clearedCells.Count);
+        List<IEnumerator> routines = new List<IEnumerator>(clearedCells.Count * (2 + ShardCountPerCell));
+        float burstDuration = duration * BurstDurationMultiplier;
+
         foreach (GridCell cell in clearedCells)
         {
             routines.Add(_views[cell.Row, cell.Col].AnimateFadeOut(duration, popScale));
+
+            Vector2 position = GetTilePosition(cell.Row, cell.Col);
+            BurstEffectView burst = _burstPool.Rent();
+            routines.Add(burst.Animate(position, _cellSize * popScale, burstDuration));
+
+            float shardTravelDistance = _cellSize * 0.7f * popScale;
+            float shardStartSize = _cellSize * 0.35f;
+            for (int i = 0; i < ShardCountPerCell; i++)
+            {
+                float angle = (360f / ShardCountPerCell * i) + UnityEngine.Random.Range(-ShardJitterDegrees, ShardJitterDegrees);
+                float radians = angle * Mathf.Deg2Rad;
+                Vector2 direction = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians));
+
+                BurstShardView shard = _shardPool.Rent();
+                routines.Add(shard.Animate(position, direction, shardTravelDistance, shardStartSize, burstDuration));
+            }
         }
 
         yield return RunAllParallel(routines);
+        _burstPool.ResetRent();
+        _shardPool.ResetRent();
     }
 
     // 중력을 애니메이션한다: Move의 목적지 view는 원래 셀 위치에서 슬라이드해 들어오고, Fill의

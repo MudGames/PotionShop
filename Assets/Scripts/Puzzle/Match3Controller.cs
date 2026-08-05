@@ -69,6 +69,18 @@ public class Match3Controller : MonoBehaviour
     [SerializeField]
     private Sprite radiusBombSprite;
 
+    // 특수 타일 배지 뒤에서 반짝이는 후광(SpecialBadgePulse 참고, 2026-08-05 추가) - 배지 자체의
+    // 알파를 낮추던 이전 방식은 어두운 고정 배경이 비쳐 오히려 어두워 보였던 문제(피드백: "왜 밝은
+    // 느낌이 안나나요")를 해결하기 위해, 중심부 불투명 -> 가장자리 투명 방사형 그라디언트 스프라이트를
+    // 별도로 얹어 밝기가 나타났다 사라지는 식으로 반짝이게 한다.
+    [SerializeField]
+    private Sprite specialGlowSprite;
+
+    // 매치 제거 시 각 셀 위치에서 짧게 번쩍이는 버스트 이펙트 스프라이트(BurstEffectView 참고,
+    // 2026-08-05 추가) - 꽉 찬 원형 그라디언트(중심 불투명 -> 가장자리 투명).
+    [SerializeField]
+    private Sprite matchBurstSprite;
+
     [Space]
     [SerializeField]
     private float swapAnimationDuration = 0.15f;
@@ -112,7 +124,7 @@ public class Match3Controller : MonoBehaviour
             return;
         }
 
-        _boardView = new BoardView(buttonContainer, cellSpacingRatio, rowBombSprite, columnBombSprite, radiusBombSprite);
+        _boardView = new BoardView(buttonContainer, cellSpacingRatio, rowBombSprite, columnBombSprite, radiusBombSprite, specialGlowSprite, matchBurstSprite);
         // 이 시점에는 _logic이 아직 존재하지 않는다(레벨별로 SetupLevel에서 생성됨) - 그래서
         // 이 predicate는 매 클릭마다 지연 평가로 읽는다. SetupLevel이 끝날 때까지 입력이
         // 비활성 상태로 유지되므로(아래 Reset/Enabled 참고) 이 방식은 안전하다.

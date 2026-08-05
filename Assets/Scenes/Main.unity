@@ -1192,12 +1192,11 @@ MonoBehaviour:
   restartRequestedChannel: {fileID: 11400000, guid: b7ca110b0e607af4cb5caebef01c20ea, type: 2}
   levelStartedChannel: {fileID: 11400000, guid: 78b86fd289694ca196c9feff18e8c616, type: 2}
   cellSpacingRatio: 0.08
-  tileSelectionSprite: {fileID: -115517716487554555, guid: a671100fec65ba84fb92776992ebeb61, type: 3}
-  tileSelectionScale: 1.25
-  tileSelectionOffset: {x: 0, y: 0}
   rowBombSprite: {fileID: 21300000, guid: 7b3876a2b72c44540a4bbd5aaba9e506, type: 3}
   columnBombSprite: {fileID: 21300000, guid: f65023889763c7644b5579f0b019da6b, type: 3}
   radiusBombSprite: {fileID: 21300000, guid: ace8a02646afeda4880fc3cb14cad705, type: 3}
+  specialGlowSprite: {fileID: 21300000, guid: a87548886001b2447b29b05a92bacfe7, type: 3}
+  matchBurstSprite: {fileID: 21300000, guid: b249620df2a12ae4fbeb03aaa729c19c, type: 3}
   swapAnimationDuration: 0.15
   clearAnimationDuration: 0.15
   moveAnimationDuration: 0.2

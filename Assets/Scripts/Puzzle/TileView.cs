@@ -26,6 +26,7 @@ public sealed class TileView
 
     private readonly Image _iconImage;
     private readonly Image _specialBadge;
+    private readonly Image _specialGlow;
     private readonly Sprite _rowBombSprite;
     private readonly Sprite _columnBombSprite;
     private readonly Sprite _radiusBombSprite;
@@ -59,7 +60,7 @@ public sealed class TileView
 
     private Vector2 _dragRestPosition;
 
-    public TileView(Transform parent, Sprite rowBombSprite, Sprite columnBombSprite, Sprite radiusBombSprite)
+    public TileView(Transform parent, Sprite rowBombSprite, Sprite columnBombSprite, Sprite radiusBombSprite, Sprite specialGlowSprite)
     {
         _rowBombSprite = rowBombSprite;
         _columnBombSprite = columnBombSprite;
@@ -86,11 +87,19 @@ public sealed class TileView
 
         _iconImage = CreateIconImage(RectTransform);
 
+        // 후광은 배지보다 먼저 생성해 형제 순서상 배지 "뒤"에 렌더링되게 한다(SpecialBadgePulse가
+        // 여기 붙어 반짝인다 - CreateSpecialGlow 참고).
+        _specialGlow = CreateSpecialGlow(RectTransform, specialGlowSprite);
+
         // 특수 타일 배지는 아이콘 앞에 렌더링되어 완전히 덮어버린다 - 특수 타일은
         // 타일의 재료 모습과 얌전히 공존하는 게 아니라, 물약(라인/컬러/레이디우스 폭탄)으로 시각적
         // 대체하려는 의도다(RefreshSpecialEdges 참고). 스프라이트는 종류마다 달라지므로 생성 시점엔
         // 비워두고 RefreshSpecialEdges에서 매번 지정한다.
         _specialBadge = CreateSpecialBadge(RectTransform);
+
+        // 테두리 프레임과 같이 살짝 커지도록 배지 트랜스폼을 넘겨준다(SpecialBadgePulse 참고,
+        // 2026-08-05 - "물약도 같이 커지는건 이상할까요?").
+        _specialGlow.GetComponent<SpecialBadgePulse>().SetBadgeTransform(_specialBadge.rectTransform);
     }
 
     private bool _dragPreviewActive;
@@ -237,6 +246,36 @@ public sealed class TileView
         return image;
     }
 
+    // 특수 타일 배지 뒤에서 반짝이는 테두리 프레임 - 타일 칸 자체 크기에 맞춘 정사각형 테두리
+    // 스프라이트(안쪽/바깥쪽 모두 투명, 테두리 선만 불투명, SpecialGlow.png)를 알파 0(안 보임)에서
+    // 시작해 SpecialBadgePulse가 나타났다 사라지는 식으로 반짝이게 한다. 배지 자체의 알파를
+    // 낮추는 방식은 뒤가 어두운 고정 배경이라 오히려 어두워 보였고(2026-08-05, "왜 밝은 느낌이
+    // 안나나요"), 꽉 찬 방사형 블롭으로 바꿨더니 이번엔 "네모 박스가 빛나는" 것처럼 어색해 보여
+    // 채워진 블롭이 아닌 테두리만 빛나는 프레임 방식으로 다시 바꿨다.
+    private static Image CreateSpecialGlow(Transform parent, Sprite glowSprite)
+    {
+        GameObject glowObject = new GameObject("SpecialGlow", typeof(RectTransform), typeof(Image));
+        glowObject.transform.SetParent(parent, false);
+
+        RectTransform rect = glowObject.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+
+        Image image = glowObject.GetComponent<Image>();
+        image.sprite = glowSprite;
+        image.raycastTarget = false;
+        image.preserveAspect = true;
+        image.color = new Color(1f, 1f, 1f, 0f);
+
+        // 반짝임은 배지가 켜지고 꺼질 때 이 오브젝트도 같이 SetActive되면서 자동으로 켜지고
+        // 꺼진다(RefreshSpecialEdges 참고) - ButtonHoverAnimator와 같은 패턴의 독립 컴포넌트.
+        glowObject.AddComponent<SpecialBadgePulse>();
+
+        glowObject.SetActive(false);
+        return image;
+    }
+
     public void SetCell(GridCell cell)
     {
         Cell = cell;
@@ -250,6 +289,12 @@ public sealed class TileView
         float specialBadgeSize = size * 0.8f;
         _specialBadge.rectTransform.sizeDelta = new Vector2(specialBadgeSize, specialBadgeSize);
         _specialBadge.rectTransform.anchoredPosition = Vector2.zero;
+
+        // 채워진 블롭이 아니라 타일 칸 테두리를 그대로 따라가는 프레임이라, 칸 자체 크기에 맞춘다
+        // (2026-08-05, "네모 박스가 빛나니까 어색합니다" 피드백으로 블롭 -> 테두리 프레임으로 교체).
+        float glowSize = size * 1.05f;
+        _specialGlow.rectTransform.sizeDelta = new Vector2(glowSize, glowSize);
+        _specialGlow.rectTransform.anchoredPosition = Vector2.zero;
     }
 
     public void SetPosition(Vector2 anchoredPosition)
@@ -263,6 +308,7 @@ public sealed class TileView
         {
             _iconImage.gameObject.SetActive(false);
             _specialBadge.gameObject.SetActive(false);
+            _specialGlow.gameObject.SetActive(false);
             return;
         }
 
@@ -302,11 +348,13 @@ public sealed class TileView
         if (badgeSprite == null)
         {
             _specialBadge.gameObject.SetActive(false);
+            _specialGlow.gameObject.SetActive(false);
             return;
         }
 
         _specialBadge.sprite = badgeSprite;
         _specialBadge.gameObject.SetActive(true);
+        _specialGlow.gameObject.SetActive(true);
         _iconImage.gameObject.SetActive(false); // 폭탄 배지는 아이콘을 그저 강조하는 게 아니라 완전히 대체한다
     }
 
@@ -377,5 +425,6 @@ public sealed class TileView
         RectTransform.localRotation = Quaternion.identity;
         _iconImage.gameObject.SetActive(false);
         _specialBadge.gameObject.SetActive(false);
+        _specialGlow.gameObject.SetActive(false);
     }
 }

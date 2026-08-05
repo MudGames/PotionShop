@@ -27,9 +27,11 @@ public sealed class MenuManager : MonoBehaviour
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
 
-        buttonObject.GetComponent<Image>().color = new Color(1.0f, 1.0f, 1.0f, 0.85f);
+        Image buttonImage = buttonObject.GetComponent<Image>();
+        buttonImage.color = new Color(1.0f, 1.0f, 1.0f, 0.85f);
         buttonObject.GetComponent<Button>().onClick.AddListener(onClick);
-        buttonObject.AddComponent<ButtonHoverAnimator>();
+        ButtonHoverAnimator hoverAnimator = buttonObject.AddComponent<ButtonHoverAnimator>();
+        hoverAnimator.SetButtonImage(buttonImage);
 
         GameObject labelObject = new GameObject("Label", typeof(RectTransform));
         labelObject.transform.SetParent(buttonObject.transform, false);

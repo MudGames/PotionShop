@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 // 버튼에 마우스를 올리면 살짝 커진 뒤 그 자리에서 숨쉬듯 계속 두근거리고, 벗어나면 원래 크기로
 // 돌아온다 - 정적 이미지(Start.png/Quit.png)만으로는 버튼처럼 느껴지지 않아서 MenuManager가
@@ -14,22 +15,49 @@ public sealed class ButtonHoverAnimator : MonoBehaviour, IPointerEnterHandler, I
     private const float PulsePeriod = 0.9f;
     private const float TweenDuration = 0.15f;
 
+    // 호버 중엔 버튼 배경 전체가 이 밝은 노란색으로 바뀐다(2026-08-05, "테두리가 아니라 버튼
+    // 전체 색상이 변해야 합니다" 요청 - 별도 테두리 오브젝트를 얹는 대신 버튼 자신의 배경
+    // Image.color를 직접 바꾸는 방식으로 정리).
+    private static readonly Color BrightYellow = new Color(1f, 0.92f, 0.25f, 1f);
+
     private Vector3 _baseScale;
     private Coroutine _routine;
+    private Image _buttonImage;
+    private Color _baseColor;
 
     private void Awake()
     {
         _baseScale = transform.localScale;
     }
 
+    // 호버 시 색을 바꿀 버튼 자신의 배경 Image를 나중에 주입받는다(2026-08-05) - 원래는 별도
+    // 테두리 오브젝트를 마우스를 올렸을 때만 보여주는 방식이었는데("마우스를 올렸을 때만 물약
+    // 테두리랑 같은 테두리가 생기게 해주세요"), 스케일/알파 타이밍이 버튼 바운스와 계속 어긋나는
+    // 문제를 겪다("테두리 바운스를 버튼에 맞춰야 합니다", "테두리 알파값 조정되는 시간이 버튼
+    // 바운스랑 안맞아서 어색합니다") "테두리가 아니라 버튼 전체 색상이 변해야 합니다" 요청으로
+    // 테두리 오브젝트 자체를 없애고 버튼 배경색을 직접 바꾸는 지금 방식으로 정리했다.
+    public void SetButtonImage(Image buttonImage)
+    {
+        _buttonImage = buttonImage;
+        _baseColor = buttonImage.color;
+    }
+
     public void OnPointerEnter(PointerEventData eventData)
     {
         RestartRoutine(HoverRoutine());
+        if (_buttonImage != null)
+        {
+            _buttonImage.color = BrightYellow;
+        }
     }
 
     public void OnPointerExit(PointerEventData eventData)
     {
         RestartRoutine(ScaleTo(_baseScale, TweenDuration));
+        if (_buttonImage != null)
+        {
+            _buttonImage.color = _baseColor;
+        }
     }
 
     private void OnDisable()
@@ -41,6 +69,11 @@ public sealed class ButtonHoverAnimator : MonoBehaviour, IPointerEnterHandler, I
         }
 
         transform.localScale = _baseScale;
+
+        if (_buttonImage != null)
+        {
+            _buttonImage.color = _baseColor;
+        }
     }
 
     private void RestartRoutine(IEnumerator routine)
@@ -54,7 +87,8 @@ public sealed class ButtonHoverAnimator : MonoBehaviour, IPointerEnterHandler, I
     }
 
     // 목표 크기까지 커진 다음, 마우스가 계속 올라가 있는 동안(OnDisable/다음 RestartRoutine으로
-    // 끊길 때까지) 그 주변에서 사인파로 계속 두근거린다.
+    // 끊길 때까지) 그 주변에서 사인파로 계속 두근거린다. 배경색은 이 바운스와 무관하게 호버
+    // 진입/이탈 시점에 한 번씩만 바뀐다(OnPointerEnter/OnPointerExit 참고).
     private IEnumerator HoverRoutine()
     {
         yield return ScaleTo(_baseScale * HoverScale, TweenDuration);
@@ -63,8 +97,8 @@ public sealed class ButtonHoverAnimator : MonoBehaviour, IPointerEnterHandler, I
         while (true)
         {
             t += Time.deltaTime;
-            float pulse = Mathf.Sin(t / PulsePeriod * Mathf.PI * 2.0f) * PulseAmplitude;
-            transform.localScale = _baseScale * (HoverScale + pulse);
+            float sin = Mathf.Sin(t / PulsePeriod * Mathf.PI * 2.0f);
+            transform.localScale = _baseScale * (HoverScale + sin * PulseAmplitude);
             yield return null;
         }
     }

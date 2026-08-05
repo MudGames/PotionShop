@@ -121,9 +121,10 @@ public sealed class PuzzleHud
     }
 
     // 데드락(교환 가능한 매치 없음) 감지로 GridController가 보드를 자동으로 섞었을 때
-    // Match3Controller가 호출한다 - 배너들과 달리 게임을 멈추지 않는 순수 안내용이라 어두운 배경
-    // 오버레이 없이 짧은 문구만 보드 위쪽에 잠깐 띄운다. 자동으로 숨기는 타이밍은
-    // Match3Controller의 코루틴이 담당한다(이 클래스는 게임 규칙/타이밍을 모른다).
+    // Match3Controller가 호출한다 - Complete/GameOver 배너와 같은 패널 전체 Dim + 큰 글씨로
+    // 잠깐 띄운다(2026-08-05, 안 보인다는 피드백으로 좁은 띠 방식에서 변경). 게임을 멈추는 배너는
+    // 아니라 버튼은 없고, 자동으로 숨기는 타이밍은 Match3Controller의 코루틴이 담당한다(이
+    // 클래스는 게임 규칙/타이밍을 모른다).
     public void ShowReshuffleNotice()
     {
         _reshuffleBanner.SetActive(true);
@@ -260,6 +261,16 @@ public sealed class PuzzleHud
         return label;
     }
 
+    // "다음 스테이지로"/"다시 시작" 버튼에 공통으로 붙이는 장식(2026-08-05 추가, "다음
+    // 스테이지로 버튼도 시작하기 버튼처럼 동적이게" 요청) - MenuManager의 시작하기/종료 버튼과
+    // 같은 호버 펄스+배경색 전환(ButtonHoverAnimator)을 여기서도 그대로 재사용해, 버튼끼리
+    // 느낌이 다르지 않게 한다.
+    private void CreateButtonDecorations(GameObject buttonObject)
+    {
+        ButtonHoverAnimator hoverAnimator = buttonObject.AddComponent<ButtonHoverAnimator>();
+        hoverAnimator.SetButtonImage(buttonObject.GetComponent<Image>());
+    }
+
     // Clear! 배너와 그 아래의 "다음 스테이지로" 버튼 - 아직 별도의 노트/요약 화면이 없으므로
     // (Match3Controller 참고) 현재로서는 이것이 진행하는 유일한 방법이다.
     private GameObject CreateCompleteBanner(Transform parent)
@@ -308,6 +319,7 @@ public sealed class PuzzleHud
 
         buttonObject.GetComponent<Image>().color = new Color(1.0f, 1.0f, 1.0f, 0.85f);
         buttonObject.GetComponent<Button>().onClick.AddListener(() => _advanceRequestedChannel.Raise());
+        CreateButtonDecorations(buttonObject);
 
         GameObject buttonLabelObject = new GameObject("Label", typeof(RectTransform));
         buttonLabelObject.transform.SetParent(buttonObject.transform, false);
@@ -366,6 +378,7 @@ public sealed class PuzzleHud
 
         buttonObject.GetComponent<Image>().color = new Color(1.0f, 1.0f, 1.0f, 0.85f);
         buttonObject.GetComponent<Button>().onClick.AddListener(() => _restartRequestedChannel.Raise());
+        CreateButtonDecorations(buttonObject);
 
         GameObject buttonLabelObject = new GameObject("Label", typeof(RectTransform));
         buttonLabelObject.transform.SetParent(buttonObject.transform, false);
@@ -385,41 +398,50 @@ public sealed class PuzzleHud
         return bannerObject;
     }
 
-    // 보드 위쪽에 짧게 뜨는 알림 배너 - Complete/GameOver 배너와 달리 어두운 배경(Dim)으로 전체를
-    // 덮지 않는다. 게임이 멈춘 게 아니라 조용히 계속 진행 중이라는 걸 알려야 하기 때문이다.
+    // Complete/GameOver 배너와 같은 방식으로 패널 전체를 어두운 배경(Dim)으로 덮고 중앙에 큼직하게
+    // 문구를 띄운다(2026-08-05, "섞었다는 폰트 출력이 잘 안보입니다. 클리어! 처럼 패널을 전체
+    // 가리고 폰트를 띄워주세요" 요청) - 기존에는 보드 위쪽의 얇은 띠만 덮어 글씨가 잘 안 보였다.
+    // 게임을 멈추는 배너는 아니라 버튼은 없고, 여전히 Match3Controller의 코루틴이 자동으로
+    // 숨기는 타이밍을 담당한다(이 클래스는 게임 규칙/타이밍을 모른다).
     private static GameObject CreateReshuffleBanner(Transform parent)
     {
         GameObject bannerObject = new GameObject("ReshuffleBanner", typeof(RectTransform));
         bannerObject.transform.SetParent(parent, false);
 
         RectTransform rect = bannerObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.05f, 0.85f);
-        rect.anchorMax = new Vector2(0.95f, 0.98f);
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
 
-        GameObject backgroundObject = new GameObject("Background", typeof(RectTransform), typeof(Image));
-        backgroundObject.transform.SetParent(bannerObject.transform, false);
-        RectTransform backgroundRect = backgroundObject.GetComponent<RectTransform>();
-        backgroundRect.anchorMin = Vector2.zero;
-        backgroundRect.anchorMax = Vector2.one;
-        backgroundRect.offsetMin = Vector2.zero;
-        backgroundRect.offsetMax = Vector2.zero;
-        backgroundObject.GetComponent<Image>().color = PanelBackgroundColor;
+        GameObject dimObject = new GameObject("Dim", typeof(RectTransform), typeof(Image));
+        dimObject.transform.SetParent(bannerObject.transform, false);
+        RectTransform dimRect = dimObject.GetComponent<RectTransform>();
+        dimRect.anchorMin = Vector2.zero;
+        dimRect.anchorMax = Vector2.one;
+        dimRect.offsetMin = Vector2.zero;
+        dimRect.offsetMax = Vector2.zero;
+        Image dimImage = dimObject.GetComponent<Image>();
+        dimImage.color = PanelBackgroundColor;
+        // Complete/GameOver와 달리 게임을 멈추지 않는 순수 안내용이라, Dim이 화면 전체를 덮어도
+        // 뒤 보드의 클릭/드래그를 가로채면 안 된다(Match3Controller가 리셔플 직후 바로 입력을
+        // 재활성화하는데, 기본값(true)이면 이 Dim이 그 입력을 실제로 막아버린다).
+        dimImage.raycastTarget = false;
 
         GameObject labelObject = new GameObject("Label", typeof(RectTransform));
         labelObject.transform.SetParent(bannerObject.transform, false);
         RectTransform labelRect = labelObject.GetComponent<RectTransform>();
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
+        labelRect.anchorMin = new Vector2(0.05f, 0.4f);
+        labelRect.anchorMax = new Vector2(0.95f, 0.6f);
         labelRect.offsetMin = Vector2.zero;
         labelRect.offsetMax = Vector2.zero;
 
         TextMeshProUGUI label = labelObject.AddComponent<TextMeshProUGUI>();
         label.text = "매치 가능한 조합이 없어 보드를 섞었어요!";
         label.alignment = TextAlignmentOptions.Center;
-        label.fontSize = 24.0f;
+        label.fontSize = 36.0f;
         label.color = Color.white;
+        label.raycastTarget = false;
         label.outlineWidth = 0.2f;
         label.outlineColor = Color.black;
 

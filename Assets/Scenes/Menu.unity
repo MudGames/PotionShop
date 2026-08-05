@@ -269,6 +269,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5dac60433a0be644e8f9fe57b72f4d2e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  startButtonSprite: {fileID: 3556886416517103566, guid: b6ecb61f51acaed44a6f5ad114e262bd, type: 3}
+  quitButtonSprite: {fileID: 2804268146505924577, guid: b6ecb61f51acaed44a6f5ad114e262bd, type: 3}
 --- !u!1 &120
 GameObject:
   m_ObjectHideFlags: 0
@@ -429,12 +431,12 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: -100
   m_MaskInteraction: 0
-  m_Sprite: {fileID: -7352339073622421304, guid: af3cb7291fd12b4428bb78cdd1bdf4fe, type: 3}
+  m_Sprite: {fileID: 1293939564165830230, guid: b6ecb61f51acaed44a6f5ad114e262bd, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 5.25, y: 3.11}
+  m_Size: {x: 4.98, y: 3}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1

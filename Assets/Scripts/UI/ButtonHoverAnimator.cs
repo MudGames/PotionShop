@@ -15,10 +15,13 @@ public sealed class ButtonHoverAnimator : MonoBehaviour, IPointerEnterHandler, I
     private const float PulsePeriod = 0.9f;
     private const float TweenDuration = 0.15f;
 
-    // 호버 중엔 버튼 배경 전체가 이 밝은 노란색으로 바뀐다(2026-08-05, "테두리가 아니라 버튼
-    // 전체 색상이 변해야 합니다" 요청 - 별도 테두리 오브젝트를 얹는 대신 버튼 자신의 배경
-    // Image.color를 직접 바꾸는 방식으로 정리).
-    private static readonly Color BrightYellow = new Color(1f, 0.92f, 0.25f, 1f);
+    // 호버 중엔 버튼 배경 전체가 이 색으로 바뀐다(2026-08-05, "테두리가 아니라 버튼 전체
+    // 색상이 변해야 합니다" 요청 - 별도 테두리 오브젝트를 얹는 대신 버튼 자신의 배경
+    // Image.color를 직접 바꾸는 방식으로 정리). Image.color는 원본 스프라이트에 곱연산(multiply)
+    // 되므로 R/G/B 중 하나라도 1보다 작으면 그 채널만큼 원본보다 어두워진다 - 보라빛
+    // (R/G가 1 미만)으로 바꿨더니 "너무 어둡다"는 피드백을 받아, R/G는 최대(1)로 유지하고
+    // B만 살짝 낮춰 실제로 밝아 보이는 따뜻한 골드빛 화이트로 재변경(2026-08-05).
+    private static readonly Color HoverTint = new Color(1f, 0.96f, 0.8f, 1f);
 
     private Vector3 _baseScale;
     private Coroutine _routine;
@@ -47,7 +50,7 @@ public sealed class ButtonHoverAnimator : MonoBehaviour, IPointerEnterHandler, I
         RestartRoutine(HoverRoutine());
         if (_buttonImage != null)
         {
-            _buttonImage.color = BrightYellow;
+            _buttonImage.color = HoverTint;
         }
     }
 

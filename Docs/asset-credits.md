@@ -72,7 +72,8 @@
 
 > 외부 에셋 라이선스가 아니라 **AI 활용 기술 문서의 "사용 AI 도구" 항목**에 그대로 옮겨 적을 것 (CLAUDE.md 제출 요건 §4).
 
-- **`Assets/Art/Sprites/UI/Title.png`** — Google Gemini로 생성
+- **`Assets/Art/Sprites/UI/Menu.png`** — Google Gemini로 생성(2026-08-05). 로고 + "시작하기"/"종료" 나무 간판이 한 시트에 담긴 이미지로, `Menu_Logo`/`Menu_Start`/`Menu_Quit` 3개 서브스프라이트로 슬라이스해 사용(`06-ui.md` 참고). 기존 `Title.png`(아래 항목, 로고 단독 이미지)는 안 쓰게 되어 삭제했고, 타이틀 화면 로고는 이제 이 `Menu_Logo` 서브스프라이트를 그대로 참조한다.
+- **`Assets/Art/Sprites/UI/Title.png`** — (2026-08-05 삭제됨, 더 이상 저장소에 없음) Google Gemini로 생성했던 로고 단독 이미지 — 위 `Menu.png`의 `Menu_Logo`로 대체
 - **`Assets/Art/Sprites/UI/Background.png`** — ChatGPT로 생성
 - **`Assets/Art/Sprites/UI/Blackground/u1.jpg`~`u64.jpg`** — AI로 생성한 64프레임 애니메이션 시퀀스(별빛 반짝임/꽃잎 낙하/수면 파문). Menu/Main 씬 배경에서 `FlipbookAnimator`로 루프 재생(`06-ui.md` 참고)
 - **저장소 처리**: 위 파일 모두 직접 생성한 원본이므로 재배포 제한 없음 — `.gitignore` 제외 대상 아님, Public 저장소에 그대로 유지

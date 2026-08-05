@@ -1,4 +1,3 @@
-using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.SceneManagement;
@@ -10,13 +9,26 @@ public sealed class MenuManager : MonoBehaviour
 {
     private string mainSceneName = "Main";
 
+    // Assets/Art/Sprites/UI/Menu.png를 3분할(Menu_Logo/Menu_Start/Menu_Quit)한 서브스프라이트
+    // 중 버튼 2종(2026-08-05 추가, "시작하기와 종료 버튼 이미지가 있습니다. 각각 슬라이스해서
+    // 기존 버튼에 이미지를 적용해주세요" 요청) - "시작하기"/"종료" 글자가 이미 그림에 그려져
+    // 있어서, 기존에 코드로 따로 얹던 TextMeshProUGUI 라벨은 제거했다(안 그러면 글자가 겹쳐 보임).
+    [SerializeField]
+    private Sprite startButtonSprite;
+    [SerializeField]
+    private Sprite quitButtonSprite;
+
     private void Start()
     {
-        CreateButton("StartButton", new Vector2(0.35f, 0.32f), new Vector2(0.65f, 0.44f), "시작하기", OnStartButtonClicked);
-        CreateButton("QuitButton", new Vector2(0.35f, 0.16f), new Vector2(0.65f, 0.28f), "종료", OnQuitButtonClicked);
+        // 앵커 높이는 임의 비율이 아니라 Menu_Start/Menu_Quit 서브스프라이트의 원본 가로세로
+        // 비율(각각 564x149, 564x147px)에 맞춰 계산한 값이다(2026-08-05) - 가로 비율(0.30)은
+        // 그대로 두고 세로만 맞췄더니 이전엔 세로가 약 13% 납작하게 눌려 보였다("눌림을
+        // 없애주세요" 피드백).
+        CreateButton("StartButton", new Vector2(0.35f, 0.3096f), new Vector2(0.65f, 0.4504f), startButtonSprite, OnStartButtonClicked);
+        CreateButton("QuitButton", new Vector2(0.35f, 0.1505f), new Vector2(0.65f, 0.2895f), quitButtonSprite, OnQuitButtonClicked);
     }
 
-    private void CreateButton(string name, Vector2 anchorMin, Vector2 anchorMax, string text, UnityAction onClick)
+    private void CreateButton(string name, Vector2 anchorMin, Vector2 anchorMax, Sprite sprite, UnityAction onClick)
     {
         GameObject buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
         buttonObject.transform.SetParent(transform, false);
@@ -28,24 +40,12 @@ public sealed class MenuManager : MonoBehaviour
         rect.offsetMax = Vector2.zero;
 
         Image buttonImage = buttonObject.GetComponent<Image>();
-        buttonImage.color = new Color(1.0f, 1.0f, 1.0f, 0.85f);
+        buttonImage.sprite = sprite;
+        buttonImage.type = Image.Type.Sliced;
+        buttonImage.color = Color.white;
         buttonObject.GetComponent<Button>().onClick.AddListener(onClick);
         ButtonHoverAnimator hoverAnimator = buttonObject.AddComponent<ButtonHoverAnimator>();
         hoverAnimator.SetButtonImage(buttonImage);
-
-        GameObject labelObject = new GameObject("Label", typeof(RectTransform));
-        labelObject.transform.SetParent(buttonObject.transform, false);
-        RectTransform labelRect = labelObject.GetComponent<RectTransform>();
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
-        labelRect.offsetMin = Vector2.zero;
-        labelRect.offsetMax = Vector2.zero;
-
-        TextMeshProUGUI label = labelObject.AddComponent<TextMeshProUGUI>();
-        label.text = text;
-        label.alignment = TextAlignmentOptions.Center;
-        label.fontSize = 32.0f;
-        label.color = Color.black;
     }
 
     private void OnStartButtonClicked()

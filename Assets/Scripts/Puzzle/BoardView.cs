@@ -144,14 +144,6 @@ public sealed class BoardView
         _views[cell.Row, cell.Col].Refresh(state, _sprites);
     }
 
-    public void RefreshSpawnedSpecials(IReadOnlyList<(GridCell Cell, SpecialKind Kind)> spawned, Board boardSnapshot)
-    {
-        foreach ((GridCell cell, SpecialKind _) in spawned)
-        {
-            Refresh(cell, boardSnapshot.Get(cell));
-        }
-    }
-
     // 이 캐스케이드 스텝에서 실제로 바뀐 셀(제거됨/이동해 온 도착지/새로 채워짐)만 최종 상태로
     // 맞춘다 - 이전에는 매 스텝마다 RefreshAll로 보드 전체(rows*columns칸)를 다시 그렸으나, 위
     // AnimateClear/AnimateGravity가 이미 이 셀들의 최종 모습을 정확히 반영하므로 안전망도 실제로
@@ -288,9 +280,9 @@ public sealed class BoardView
     private const int ShardCountPerCell = 6;
     private const float ShardJitterDegrees = 20f;
 
-    public IEnumerator AnimateClear(IReadOnlyList<GridCell> clearedCells, float duration, float popScale)
+    public IEnumerator AnimateClear(IReadOnlyList<GridCell> clearedCells, IReadOnlyList<(GridCell Cell, SpecialKind Kind)> spawnedSpecials, float duration, float popScale)
     {
-        List<IEnumerator> routines = new List<IEnumerator>(clearedCells.Count * (2 + ShardCountPerCell));
+        List<IEnumerator> routines = new List<IEnumerator>(clearedCells.Count * (2 + ShardCountPerCell) + spawnedSpecials.Count * 2);
         float burstDuration = duration * BurstDurationMultiplier;
 
         foreach (GridCell cell in clearedCells)
@@ -312,6 +304,18 @@ public sealed class BoardView
                 BurstShardView shard = _shardPool.Rent();
                 routines.Add(shard.Animate(position, direction, shardTravelDistance, shardStartSize, burstDuration));
             }
+        }
+
+        // 특수 타일(물약)로 승격되는 칸도 사라지는 칸과 똑같이 팝+버스트를 겪는다 - 사라지지 않고
+        // 그 자리에서 재료 아이콘이 물약 배지로 바뀔 뿐이다(2026-08-05, "터지지 않고 바로 물약으로
+        // 바뀐다" 버그 픽스 - 이 칸만 여기서 빠져 있어 팝/버스트 없이 즉시 바뀌어 보였음).
+        foreach ((GridCell cell, SpecialKind kind) in spawnedSpecials)
+        {
+            routines.Add(_views[cell.Row, cell.Col].AnimatePromoteToSpecial(kind, duration, popScale));
+
+            Vector2 position = GetTilePosition(cell.Row, cell.Col);
+            BurstEffectView burst = _burstPool.Rent();
+            routines.Add(burst.Animate(position, _cellSize * popScale, burstDuration));
         }
 
         yield return RunAllParallel(routines);

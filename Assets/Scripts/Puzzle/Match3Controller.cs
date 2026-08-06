@@ -5,7 +5,7 @@ using UnityEngine;
 // 얇은 Presentation 오케스트레이터: Puzzle.Core.GridController 인스턴스와 그 Presentation
 // 협력 객체들 - BoardView(그리드 레이아웃/렌더링/애니메이션), TileController(클릭 -> 스왑
 // 요청), PuzzleEffectController(연쇄 애니메이션 재생), PuzzleHud(점수/남은 이동/배너), 그리고
-// PuzzleSidePanel(미션/주문 진행도, 보드 옆의 자체 패널) - 를 생성하고
+// PuzzleSidePanel(주문 재료/주문 진행도, 보드 옆의 자체 패널) - 를 생성하고
 // 서로 연결한다. 게임 규칙도, 레이아웃 계산도, 애니메이션 타이밍 로직도, UI 위젯 생성 로직도
 // 이 클래스 자체에는 없다; 그런 것들은 이웃한 BoardView.cs/TileController.cs/
 // PuzzleEffectController.cs/PuzzleHud.cs/PuzzleSidePanel.cs를 참고하고, 게임 규칙은
@@ -149,12 +149,12 @@ public class Match3Controller : MonoBehaviour
         // 이 클래스가 타이밍에 맞춰 직접 호출한다(OnSwapPlaybackComplete 참고).
         _hud = new PuzzleHud(transform.parent, transform, scoreChangedChannel, movesChangedChannel, orderClearedChannel, advanceRequestedChannel, restartRequestedChannel);
 
-        // 미션(주문 진행도)은 보드 옆의 자체 패널에 있으며, 마찬가지로 PuzzleCanvas
+        // 주문 진행도는 보드 옆의 자체 패널에 있으며, 마찬가지로 PuzzleCanvas
         // (transform.parent)에 부모로 연결되어 PuzzlePanel 자체의 로컬 스케일/장식과 무관하게
         // 위치가 유지된다 - PuzzleSidePanel 참고. orderProgressChannel도 스스로 구독한다.
         _sidePanel = new PuzzleSidePanel(transform.parent, orderProgressChannel);
 
-        // 매치3 기본 규칙 + 특수 타일(물약) 3종 설명 - PuzzleSidePanel(미션 패널)과 대칭되는 보드
+        // 매치3 기본 규칙 + 특수 타일(물약) 3종 설명 - PuzzleSidePanel(주문 재료 패널)과 대칭되는 보드
         // 왼쪽 자리에 놓이는 상시 참고용 패널이라, 모달처럼 열고 닫는 상태가 따로 없다.
         _tutorial = new TutorialPanel(transform.parent, rowBombSprite, columnBombSprite, radiusBombSprite);
 
@@ -184,7 +184,7 @@ public class Match3Controller : MonoBehaviour
         // 주문 진행도를 Raise하기 전에 미리 넘겨둔다 - PuzzleSidePanel.SetIngredientSprites 참고.
         _sidePanel.SetIngredientSprites(ingredientSprites);
 
-        // 미션 난이도(재료 종류 수/요구 개수)는 GameManager.CurrentStageNumber를 따라 올라간다 -
+        // 주문 난이도(재료 종류 수/요구 개수)는 GameManager.CurrentStageNumber를 따라 올라간다 -
         // GameManager가 없는 단독 씬 테스트 환경에서는 기본값 1(가장 쉬운 난이도)로 생성된다.
         int stageNumber = GameManager.Instance != null ? GameManager.Instance.CurrentStageNumber : 1;
         _logic = new GridController(_activeLevel, new UnityRandomTileSource(), scoreChangedChannel, movesChangedChannel, orderProgressChannel, startingScore, startingMaxCombo, stageNumber);
@@ -248,8 +248,7 @@ public class Match3Controller : MonoBehaviour
     {
         if (_logic.IsCleared)
         {
-            AudioManager.Instance?.PlayRoundEnd();
-            orderClearedChannel.Raise();
+            StartCoroutine(ShowCompleteAfterDelay());
             return;
         }
 
@@ -301,6 +300,20 @@ public class Match3Controller : MonoBehaviour
     {
         yield return new WaitForSeconds(ReshuffleNoticeDuration);
         _hud.HideReshuffleNotice();
+    }
+
+    // 주문 완료 시 보드에 남은 물약이 자동으로 하나씩 연쇄 폭발한 직후(11-order-stage.md 참고)
+    // 곧바로 클리어 배너를 띄우면 마지막 이펙트가 채 가라앉기도 전에 화면이 가려져 버린다
+    // ("연출이 좀 끝난 후에 클리어 패널이 뜨면 좋겠습니다" 요청, 2026-08-06) - 짧은 여백을 두고
+    // 배너를 띄운다. 라운드 종료 사운드도 배너와 같은 타이밍에 맞춰 이 시점으로 옮겼다. 처음엔
+    // 0.6초였는데 "살짝 깁니다" 피드백으로 0.4초로 줄임.
+    private const float ClearBannerDelay = 0.4f;
+
+    private IEnumerator ShowCompleteAfterDelay()
+    {
+        yield return new WaitForSeconds(ClearBannerDelay);
+        AudioManager.Instance?.PlayRoundEnd();
+        orderClearedChannel.Raise();
     }
 
 

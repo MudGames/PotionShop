@@ -87,8 +87,7 @@ public sealed class PuzzleEffectController
                 AudioManager.Instance?.PlayCascade();
             }
 
-            yield return _boardView.AnimateClear(step.ClearedCells, _clearDuration, ComputeClearPopScale(step));
-            _boardView.RefreshSpawnedSpecials(step.SpawnedSpecials, step.BoardSnapshot);
+            yield return _boardView.AnimateClear(step.ClearedCells, step.SpawnedSpecials, _clearDuration, ComputeClearPopScale(step));
 
             yield return _boardView.AnimateGravity(step.Moves, step.Fills, step.BoardSnapshot, _moveDuration);
 

@@ -3,13 +3,13 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 점수/남은 이동 HUD 바와 Clear!/결과(게임 오버) 배너를 담당한다 - 순수한 UI 상태와 위젯 생성만
-// 하며 게임 규칙은 없다. 미션(주문 진행도)은 이 상단 바가 아니라 퍼즐 보드 옆에 위치한 자체
+// 점수/남은 이동 HUD 바와 수집 완료!/결과(수집 실패...) 배너를 담당한다 - 순수한 UI 상태와 위젯 생성만
+// 하며 게임 규칙은 없다. 주문 진행도는 이 상단 바가 아니라 퍼즐 보드 옆에 위치한 자체
 // PuzzleSidePanel에 있다(남은 이동은 2026-08-04부터 이 바로 이동함 - 점수 오른쪽에 나란히 배치).
 // 어두운 배경 패널과 텍스트 외곽선 덕분에 뒤에 무엇이 보이든 가독성이 유지된다.
 //
 // Match3Controller/GameManager를 직접 참조하지 않는다 - ScoreChangedChannel/OrderClearedChannel을
-// 구독해 스스로 갱신하고, Clear! 배너/결과 화면의 버튼은 각각 AdvanceRequestedChannel/
+// 구독해 스스로 갱신하고, 수집 완료! 배너/결과 화면의 버튼은 각각 AdvanceRequestedChannel/
 // RestartRequestedChannel을 Raise할 뿐이다(누가 듣는지는 알 필요 없다) - CLAUDE.md 이벤트 채널
 // 아키텍처 원칙 참고. 단, 결과 화면에 표시할 최종 점수/최고 콤보는 "게임 오버 시점의 최종값"이라는
 // 프레젠테이션 타이밍이 걸린 데이터라 채널이 아니라 Match3Controller가 ShowGameOver를 직접
@@ -22,6 +22,7 @@ public sealed class PuzzleHud
     private readonly TextMeshProUGUI _movesLabel;
     private readonly TextMeshProUGUI _stageLabel;
     private readonly GameObject _completeBanner;
+    private readonly ButtonHoverAnimator _advanceButtonHoverAnimator;
     private readonly GameObject _gameOverBanner;
     private readonly GameObject _reshuffleBanner;
     private readonly GameObject _comboPopup;
@@ -58,7 +59,7 @@ public sealed class PuzzleHud
         // 왼쪽 구석에 배치, 점수/이동 라벨과 같은 폰트 크기(CreateHudLabel 기본값 32) 사용.
         _stageLabel = CreateHudLabel(hudRect, "StageLabel", new Vector2(0.02f, 0.0f), new Vector2(0.28f, 1.0f), TextAlignmentOptions.MidlineLeft);
 
-        _completeBanner = CreateCompleteBanner(bannerParent);
+        _completeBanner = CreateCompleteBanner(bannerParent, out _advanceButtonHoverAnimator);
         _gameOverBanner = CreateGameOverBanner(bannerParent, out _gameOverScoreLabel, out _gameOverComboLabel);
         _reshuffleBanner = CreateReshuffleBanner(bannerParent);
         _comboPopup = CreateComboPopup(bannerParent, out _comboPopupLabel);
@@ -99,6 +100,10 @@ public sealed class PuzzleHud
     private void ShowComplete()
     {
         _completeBanner.SetActive(true);
+
+        // ButtonHoverAnimator.OnDisable이 배너가 숨겨질 때마다 버튼을 기본 모습으로 되돌려두므로,
+        // 다시 뜰 때마다 항상-호버 모습을 다시 걸어줘야 한다(AlwaysHovered 참고).
+        _advanceButtonHoverAnimator.ForceHoverVisual();
     }
 
     private void HideComplete()
@@ -148,6 +153,12 @@ public sealed class PuzzleHud
     private const float ComboPopupHoldDuration = 0.8f;
     private const float ComboPopupExitDuration = 0.2f;
 
+    // 콤보가 늘어날 때마다 이만큼씩 계속 커지도록(ComputeComboPopupScale 참고, ComboPopupScaleMax에서
+    // 상한) - 2026-08-05, "횟수 증가에 따라서 점점 커 보이게 해주세요" 요청으로 3단계 고정 배율
+    // (2/1.0배, 3~4/1.15배, 5+/1.3배) 대신 스텝마다 커지는 연속 공식으로 교체.
+    private const float ComboPopupScaleStep = 0.15f;
+    private const float ComboPopupScaleMax = 1.75f;
+
     public IEnumerator AnimateComboPopup(int comboCount)
     {
         _comboPopupLabel.text = $"Combo x{comboCount}!";
@@ -185,21 +196,14 @@ public sealed class PuzzleHud
         _comboPopupLabel.color = new Color(labelColor.r, labelColor.g, labelColor.b, 1f);
     }
 
-    // 콤보 스텝 수가 클수록 팝업이 조금씩 더 크게 보이게 한다 - 타일 제거 팝 연출의 매치/콤보 규모
-    // 비례 크기 확대(PuzzleEffectController.ComputeClearPopScale)와 같은 취지.
+    // 콤보 스텝 수가 늘어날 때마다 팝업이 계속 조금씩 더 크게 보이게 한다(ComboPopupScaleMax에서
+    // 상한) - 타일 제거 팝 연출의 매치/콤보 규모 비례 크기 확대(PuzzleEffectController.
+    // ComputeClearPopScale)와 같은 취지. comboCount는 항상 2 이상이다(AnimateComboPopup은
+    // result.Steps.Count>=2일 때만 호출됨, Match3Controller.OnSwapPlaybackComplete 참고).
     private static float ComputeComboPopupScale(int comboCount)
     {
-        if (comboCount >= 5)
-        {
-            return 1.3f;
-        }
-
-        if (comboCount >= 3)
-        {
-            return 1.15f;
-        }
-
-        return 1.0f;
+        float scale = 1.0f + ComboPopupScaleStep * (comboCount - 2);
+        return Mathf.Min(scale, ComboPopupScaleMax);
     }
 
     private static float EaseOutBack(float t)
@@ -265,15 +269,16 @@ public sealed class PuzzleHud
     // 스테이지로 버튼도 시작하기 버튼처럼 동적이게" 요청) - MenuManager의 시작하기/종료 버튼과
     // 같은 호버 펄스+배경색 전환(ButtonHoverAnimator)을 여기서도 그대로 재사용해, 버튼끼리
     // 느낌이 다르지 않게 한다.
-    private void CreateButtonDecorations(GameObject buttonObject)
+    private ButtonHoverAnimator CreateButtonDecorations(GameObject buttonObject)
     {
         ButtonHoverAnimator hoverAnimator = buttonObject.AddComponent<ButtonHoverAnimator>();
         hoverAnimator.SetButtonImage(buttonObject.GetComponent<Image>());
+        return hoverAnimator;
     }
 
     // Clear! 배너와 그 아래의 "다음 스테이지로" 버튼 - 아직 별도의 노트/요약 화면이 없으므로
     // (Match3Controller 참고) 현재로서는 이것이 진행하는 유일한 방법이다.
-    private GameObject CreateCompleteBanner(Transform parent)
+    private GameObject CreateCompleteBanner(Transform parent, out ButtonHoverAnimator advanceButtonHoverAnimator)
     {
         GameObject bannerObject = new GameObject("CompleteBanner", typeof(RectTransform));
         bannerObject.transform.SetParent(parent, false);
@@ -302,7 +307,7 @@ public sealed class PuzzleHud
         labelRect.offsetMax = Vector2.zero;
 
         TextMeshProUGUI label = labelObject.AddComponent<TextMeshProUGUI>();
-        label.text = "클리어!";
+        label.text = "수집 완료!";
         label.alignment = TextAlignmentOptions.Center;
         label.fontSize = 48.0f;
         label.color = Color.white;
@@ -319,7 +324,11 @@ public sealed class PuzzleHud
 
         buttonObject.GetComponent<Image>().color = new Color(1.0f, 1.0f, 1.0f, 0.85f);
         buttonObject.GetComponent<Button>().onClick.AddListener(() => _advanceRequestedChannel.Raise());
-        CreateButtonDecorations(buttonObject);
+
+        // 다음 스테이지 진행을 유도하는 버튼이라, 실제 마우스가 벗어나도 항상 호버 모습을
+        // 유지한다(2026-08-06 요청) - ButtonHoverAnimator.AlwaysHovered 참고.
+        advanceButtonHoverAnimator = CreateButtonDecorations(buttonObject);
+        advanceButtonHoverAnimator.AlwaysHovered = true;
 
         GameObject buttonLabelObject = new GameObject("Label", typeof(RectTransform));
         buttonLabelObject.transform.SetParent(buttonObject.transform, false);
@@ -363,7 +372,7 @@ public sealed class PuzzleHud
         dimObject.GetComponent<Image>().color = PanelBackgroundColor;
 
         TextMeshProUGUI titleLabel = CreateGameOverLabel(bannerObject.transform, "TitleLabel", new Vector2(0.0f, 0.72f), new Vector2(1.0f, 0.9f), 48.0f);
-        titleLabel.text = "게임 오버";
+        titleLabel.text = "수집 실패...";
 
         scoreLabel = CreateGameOverLabel(bannerObject.transform, "ScoreLabel", new Vector2(0.0f, 0.56f), new Vector2(1.0f, 0.72f), 30.0f);
         comboLabel = CreateGameOverLabel(bannerObject.transform, "ComboLabel", new Vector2(0.0f, 0.42f), new Vector2(1.0f, 0.56f), 30.0f);
@@ -399,7 +408,7 @@ public sealed class PuzzleHud
     }
 
     // Complete/GameOver 배너와 같은 방식으로 패널 전체를 어두운 배경(Dim)으로 덮고 중앙에 큼직하게
-    // 문구를 띄운다(2026-08-05, "섞었다는 폰트 출력이 잘 안보입니다. 클리어! 처럼 패널을 전체
+    // 문구를 띄운다(2026-08-05, "섞었다는 폰트 출력이 잘 안보입니다. CLEAR! 처럼 패널을 전체
     // 가리고 폰트를 띄워주세요" 요청) - 기존에는 보드 위쪽의 얇은 띠만 덮어 글씨가 잘 안 보였다.
     // 게임을 멈추는 배너는 아니라 버튼은 없고, 여전히 Match3Controller의 코루틴이 자동으로
     // 숨기는 타이밍을 담당한다(이 클래스는 게임 규칙/타이밍을 모른다).

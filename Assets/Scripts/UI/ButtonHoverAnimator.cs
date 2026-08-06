@@ -28,6 +28,11 @@ public sealed class ButtonHoverAnimator : MonoBehaviour, IPointerEnterHandler, I
     private Image _buttonImage;
     private Color _baseColor;
 
+    // true면 실제 마우스가 벗어나도(OnPointerExit) 호버 모습을 유지한다(2026-08-06, "다음 스테이지
+    // 버튼은 항상 마우스를 올렸을 때 모습으로 변경해주세요" 요청) - 진행을 유도하는 버튼 하나만
+    // 항상 강조돼 보이도록, 이 버튼에 한해서만 켠다(PuzzleHud.CreateCompleteBanner 참고).
+    public bool AlwaysHovered { get; set; }
+
     private void Awake()
     {
         _baseScale = transform.localScale;
@@ -47,19 +52,37 @@ public sealed class ButtonHoverAnimator : MonoBehaviour, IPointerEnterHandler, I
 
     public void OnPointerEnter(PointerEventData eventData)
     {
-        RestartRoutine(HoverRoutine());
-        if (_buttonImage != null)
-        {
-            _buttonImage.color = HoverTint;
-        }
+        ApplyHoverVisual();
     }
 
     public void OnPointerExit(PointerEventData eventData)
     {
+        if (AlwaysHovered)
+        {
+            return;
+        }
+
         RestartRoutine(ScaleTo(_baseScale, TweenDuration));
         if (_buttonImage != null)
         {
             _buttonImage.color = _baseColor;
+        }
+    }
+
+    // AlwaysHovered 버튼이 (다시) 활성화될 때마다 호출된다 - OnDisable이 매번 기본 모습으로
+    // 되돌려두므로(아래 참고), 배너가 다시 뜰 때마다 호버 모습을 다시 걸어줘야 한다
+    // (PuzzleHud.ShowComplete 참고).
+    public void ForceHoverVisual()
+    {
+        ApplyHoverVisual();
+    }
+
+    private void ApplyHoverVisual()
+    {
+        RestartRoutine(HoverRoutine());
+        if (_buttonImage != null)
+        {
+            _buttonImage.color = HoverTint;
         }
     }
 

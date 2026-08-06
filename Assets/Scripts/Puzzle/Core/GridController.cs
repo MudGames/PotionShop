@@ -25,18 +25,25 @@ namespace Puzzle.Core
         // 타일 하나를 제거할 때 얻는 점수 (아래의 cascade 깊이 배수가 적용되기 전 기본값).
         private const int PointsPerTile = 10;
 
-        // 랜덤 주문(미션) 생성 범위 - 스테이지(마지막 스테이지 반복 포함)를 시작할 때마다 매번
+        // 콤보(steps.Count>=2, 04-score-combo.md 정의) 자체에 주는 추가 점수 - 기존에는 스텝별
+        // 깊이 배수(ResolveOneStep의 stepIndex+1 항)만 있어서 콤보가 깊어질수록 점수가 커지는
+        // 효과는 있었지만 콤보 자체에 대한 명시적인 보너스는 없었다("콤보 추가 점수도 적용해주세요"
+        // 요청, 2026-08-05). 최초 매치(스텝 0) 이후 이어진 스텝 수만큼 곱해 ResolveCascadeAndFinish
+        // 끝에서 한 번에 더해준다.
+        private const int ComboBonusPerStep = 20;
+
+        // 랜덤 주문 생성 범위 - 스테이지(마지막 스테이지 반복 포함)를 시작할 때마다 매번
         // 새로 뽑는다. LevelData.orderRequirements는 더 이상 읽지 않는다(아래 생성자 참고).
         // 아래 값들은 1스테이지 기준 난이도이며, GenerateRandomRequirements가 stageNumber에 따라
         // 점점 어렵게(재료 종류 수/요구 개수 모두) 조정한다 - 2026-08-04, "미션이 스테이지와 무관하게
         // 항상 랜덤이라 난이도 곡선이 없다"는 피드백으로 추가.
-        private const int MinMissionIngredientTypes = 1;
-        private const int MaxMissionIngredientTypes = 3; // inclusive
+        private const int MinOrderIngredientTypes = 1;
+        private const int MaxOrderIngredientTypes = 3; // inclusive
         private const int MinRequirementCount = 3;
         private const int MaxRequirementCount = 8; // inclusive
 
         // 재료 종류 수 상한이 한 단계 늘어나기까지 걸리는 스테이지 수 (예: 3이면 1~3스테이지는
-        // 최대 1종, 4~6스테이지는 최대 2종, 7스테이지부터 최대 3종 - MaxMissionIngredientTypes에서 상한).
+        // 최대 1종, 4~6스테이지는 최대 2종, 7스테이지부터 최대 3종 - MaxOrderIngredientTypes에서 상한).
         private const int StagesPerExtraIngredientType = 3;
 
         // 스테이지 1당 요구 개수(최소/최대 모두)가 늘어나는 폭과, 무한정 어려워지지 않도록 두는 상한.
@@ -106,7 +113,7 @@ namespace Puzzle.Core
             Score = startingScore;
             MaxCombo = startingMaxCombo;
 
-            // 미션은 LevelData에 고정된 값을 쓰는 대신 매번 무작위로 생성한다 - 재료 종류 수/요구
+            // 주문은 LevelData에 고정된 값을 쓰는 대신 매번 무작위로 생성한다 - 재료 종류 수/요구
             // 개수 범위 모두 stageNumber가 높을수록 늘어난다(위 상수 및 GenerateRandomRequirements
             // 참고). LevelData.orderRequirements는 더 이상 읽지 않는다(사용 안 함 - 2026-08-02 결정).
             _requirements = GenerateRandomRequirements(_typeCount, stageNumber, random);
@@ -132,12 +139,12 @@ namespace Puzzle.Core
         }
 
         // 재료 1~3종(typeCount보다 많이 고를 수는 없다)을 중복 없이 무작위로 골라, 각각 일정 개수
-        // 수집을 요구하는 미션을 만든다. typeCount가 0이면 빈 배열을 반환한다 - 그러면
+        // 수집을 요구하는 주문을 만든다. typeCount가 0이면 빈 배열을 반환한다 - 그러면
         // ResolveCascadeAndFinish의 "_requirements.Length > 0" 가드에 의해 자연히 절대 클리어되지
         // 않는 기존 안전장치와 동일하게 동작한다.
         //
         // stageNumber가 높을수록 두 축 모두 어려워진다: (1) 재료 종류 수의 상한이
-        // StagesPerExtraIngredientType마다 1씩 늘어나 MaxMissionIngredientTypes에서 멈추고,
+        // StagesPerExtraIngredientType마다 1씩 늘어나 MaxOrderIngredientTypes에서 멈추고,
         // (2) 요구 개수의 최소/최대가 스테이지당 RequirementCountPerStage만큼 늘어나되
         // MaxRequirementCountCap에서 멈춘다(마지막 스테이지를 반복 플레이해도 난이도가 무한정
         // 오르지 않도록). stageNumber=1이면 기존과 동일한 난이도(3~8개, 최대 3종)로 시작한다.
@@ -146,11 +153,11 @@ namespace Puzzle.Core
             int difficultyStep = Mathf.Max(0, stageNumber - 1);
 
             int maxIngredientTypes = Mathf.Min(
-                MaxMissionIngredientTypes,
-                MinMissionIngredientTypes + difficultyStep / StagesPerExtraIngredientType);
+                MaxOrderIngredientTypes,
+                MinOrderIngredientTypes + difficultyStep / StagesPerExtraIngredientType);
 
             int requirementTypeCount = Mathf.Min(
-                random.NextInRange(MinMissionIngredientTypes, maxIngredientTypes + 1),
+                random.NextInRange(MinOrderIngredientTypes, maxIngredientTypes + 1),
                 typeCount);
 
             int minRequirementCount = Mathf.Min(MinRequirementCount + difficultyStep * RequirementCountPerStage, MaxRequirementCountCap);
@@ -321,7 +328,7 @@ namespace Puzzle.Core
 
                 // 일반 캐스케이드가 다 가라앉았는데 마침 주문이 완료됐다면, 클리어를 확정하기 전에
                 // 보드에 남아있는 물약(스페셜 타일)들을 하나씩 강제로 터뜨려 보너스 점수를 더 준다 -
-                // "미션 클리어 시 남은 물약 자동 활성화" 요구사항. 한 번에 하나씩만 시드해 매번 새로운
+                // "주문 클리어 시 남은 물약 자동 활성화" 요구사항. 한 번에 하나씩만 시드해 매번 새로운
                 // CascadeStepInfo 스텝으로 처리되므로, Presentation은 코드 변경 없이 기존
                 // PlayCascadeRoutine으로 이 스텝들까지 순서대로 재생한 뒤에야(모든 물약이 터지는
                 // 연출이 끝난 뒤에야) OnSwapPlaybackComplete에서 IsCleared를 확인해 클리어 배너를
@@ -342,6 +349,16 @@ namespace Puzzle.Core
             if (steps.Count > MaxCombo)
             {
                 MaxCombo = steps.Count;
+            }
+
+            // 콤보 보너스: 스텝별 점수는 이미 위 while 루프에서 스텝마다 즉시 Score에 더해지고
+            // Raise됐으므로(각 스텝이 재생될 시점엔 이번 액션이 몇 스텝짜리 콤보였는지 아직 알 수
+            // 없다), 콤보 전체 크기가 확정된 지금 이 시점에 한 번 더 보너스를 얹는다.
+            if (steps.Count >= 2)
+            {
+                int comboBonus = ComboBonusPerStep * (steps.Count - 1);
+                Score += comboBonus;
+                _scoreChangedChannel.Raise(Score);
             }
 
             // orderRequirements가 비어있다는 것은 스테이지가 아직 구성되지 않았다는 의미다 - 이 경우 절대 클리어되지 않는다 (LevelData 참고).
@@ -368,7 +385,7 @@ namespace Puzzle.Core
             return new SwapResult(true, steps, wasReshuffled);
         }
 
-        // 보드를 행 우선(row-major) 순서로 훑어 스페셜 타일이 있는 첫 셀을 찾는다 - 미션 클리어
+        // 보드를 행 우선(row-major) 순서로 훑어 스페셜 타일이 있는 첫 셀을 찾는다 - 주문 클리어
         // 후 남은 물약을 하나씩 자동으로 터뜨릴 때 어떤 것부터 시작할지 정하는 데 쓰인다
         // (ResolveCascadeAndFinish 참고). 순서 자체에 특별한 의미는 없다 - 결국 다 터뜨릴 것이므로
         // 매번 일관되게 같은 셀부터 찾기만 하면 된다.

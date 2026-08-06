@@ -4,7 +4,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 미션(주문 진행도) 표시를, PuzzlePanel 바로 오른쪽에 위치한 자체 패널로 분리한 것 -
+// 주문 재료(주문 진행도) 표시를, PuzzlePanel 바로 오른쪽에 위치한 자체 패널로 분리한 것 -
 // PuzzleHud의 상단 바는 짧은 라벨 몇 개를 놓을 공간밖에 없어서 전체 주문 정보를 담을 수
 // 없었기 때문이다. PuzzlePanel 자체의 높이를 그대로 따라가며, PuzzlePanel이 왼쪽에 이미 남겨둔
 // 것과 같은 크기의 빈 여백에서 그 오른쪽 가장자리에 딱 맞닿게 배치된다. 남은 이동 횟수는
@@ -39,7 +39,7 @@ public sealed class PuzzleSidePanel
         CreateFillBackground(panelRect);
 
         TextMeshProUGUI titleLabel = CreateLabel(panelRect, "MissionTitle", new Vector2(0.05f, 0.9f), new Vector2(0.95f, 0.98f), TextAlignmentOptions.Center, 30.0f);
-        titleLabel.text = "미션";
+        titleLabel.text = "주문 재료";
 
         // 행 높이(0.14)와 아이콘 x범위(0.06-0.2)는 TutorialPanel.CreateBombRow와 동일한 값이다 -
         // 두 패널이 서로 대칭되는 같은 크기이므로, 같은 비율을 쓰면 아이콘의 실제 픽셀 크기도 같아진다.

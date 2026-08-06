@@ -427,4 +427,44 @@ public sealed class TileView
         _specialBadge.gameObject.SetActive(false);
         _specialGlow.gameObject.SetActive(false);
     }
+
+    // 매치로 제거되는 대신 특수 타일(물약)로 승격되는 칸의 연출 - AnimateFadeOut과 같은 pop 곡선으로
+    // 부풀었다 줄어들지만, 사라지는 게 아니라 pop의 정점(ClearPopPhaseRatio 지점)에서 재료 아이콘을
+    // 물약 배지로 바꿔치기한 뒤 원래 크기로 가라앉는다 - "터지지 않고 바로 물약으로 바뀐다"는
+    // 버그 픽스(2026-08-05). 이전에는 이 칸이 AnimateClear 대상에서 아예 빠져 있어 팝/버스트 없이
+    // 즉시 바뀌어 보였다.
+    public IEnumerator AnimatePromoteToSpecial(SpecialKind special, float duration, float popScale)
+    {
+        bool swapped = false;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+
+            float scale;
+            if (t < ClearPopPhaseRatio)
+            {
+                float popT = t / ClearPopPhaseRatio;
+                scale = Mathf.LerpUnclamped(1f, popScale, 1f - (1f - popT) * (1f - popT));
+            }
+            else
+            {
+                float settleT = (t - ClearPopPhaseRatio) / (1f - ClearPopPhaseRatio);
+                scale = Mathf.LerpUnclamped(popScale, 1f, settleT * settleT);
+
+                if (!swapped)
+                {
+                    swapped = true;
+                    RefreshSpecialEdges(special);
+                }
+            }
+
+            RectTransform.localScale = Vector3.one * scale;
+            yield return null;
+        }
+
+        RectTransform.localScale = Vector3.one;
+    }
 }
